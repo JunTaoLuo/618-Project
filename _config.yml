@@ -10,5 +10,4 @@ kramdown:
 relative_links:
   enabled: true
 include:
-  - docs/Appendix.md
-  - docs/Proposal.md
+  - Proposal.md

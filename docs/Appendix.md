@@ -1,4 +1,3 @@
 # Appendix
 
-extra info
-
+Extra info

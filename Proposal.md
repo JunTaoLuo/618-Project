@@ -12,9 +12,9 @@ bool isEven(int i) {
 }
 ```
 
-Relative reference:
+Relative reference (permalink):
 
-https://github.com/JunTaoLuo/618-Project/blob/master/src/sample.c#L2
+https://github.com/JunTaoLuo/618-Project/blob/712b42ce82564e9bb353ff9e4f4c022c76d5e597/src/sample.c#L2
 
 Relative links:
 
