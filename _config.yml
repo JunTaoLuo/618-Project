@@ -1,7 +1,7 @@
 plugins:
   - jekyll-relative-links
   - jekyll-remote-theme
-remote_theme: pages-themes/merlot@v0.2.0
+remote_theme: pages-themes/leap-day@v0.2.0
 markdown: kramdown
 highlighter: rouge
 kramdown:
@@ -9,7 +9,6 @@ kramdown:
   syntax_highlighter: rouge
 relative_links:
   enabled: true
-  # collections: true
 include:
-  - Appendix.md
-  - Proposal.md
+  - docs/Appendix.md
+  - docs/Proposal.md
