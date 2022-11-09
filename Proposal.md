@@ -15,11 +15,11 @@ Scalable concurrent priority queues, which are pivotal to topics such as the rea
 
 As a performance baseline, we will implement a fine-grained priority queue[2]. Inspired by the ideas of [1], we will investigate the performance of a concurrent lock-free priority queue based on MDList that guarantees a worst-case search time of O(logN). Based on MDList, we are going to implement the concurrent insertion with two steps: node splicing and child adoption[Figure 1], which only updates at most two consecutive nodes. 
 
-![Node splicing and child adoption](docs/imgs/fig1.png)
+![Node splicing and child adoption](docs/imgs/fig1.png "Figure 1: Insert operation in a 3DList")
 
 For the deleteMin operation, we will apply both logical and physical deletion while maintaining a deletion stack to provide the operation the information about the position of the next smallest node to reduce node traversal [Figure 2]. 
 
-![deleteMin operation](docs/imgs/fig2.png)
+![deleteMin operation](docs/imgs/fig2.png "Figure 2: Logical and Physical Deletion")
 
 Finally, we will analyze the performance of the MDList concurrent lock-free priority queue given variations in parameters such as the number of threads and the number of dimensions of the linked list using various traffic loads. Finally we will benchmark the performance against some well-established concurrent lock-free priority queue implementation, if applicable, such as TBBPQ by intel and LJPQ by Herlihy and Shavit[3] on NUMA systems.
 
