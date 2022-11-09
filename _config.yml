@@ -1,7 +1,15 @@
 plugins:
   - jekyll-relative-links
+  - jekyll-remote-theme
+remote_theme: pages-themes/merlot@v0.2.0
+markdown: kramdown
+highlighter: rouge
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
 relative_links:
   enabled: true
-  collections: true
+  # collections: true
 include:
+  - Appendix.md
   - Proposal.md
