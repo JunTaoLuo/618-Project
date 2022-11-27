@@ -28,7 +28,7 @@ void sssp(const std::vector<std::vector<uint>> &edges,
   frontier.push(Vertex(0, 0));
   uint visitedCount = 0;
 
-  while (visitedCount < numVertices) {
+  while (visitedCount < numVertices && frontier.size() > 0) { // Possible optimization
     auto v = frontier.top();
     frontier.pop();
 
@@ -54,11 +54,21 @@ int main(int argc, char *argv[]) {
   loadGraphFromFile(options.inputFile, edges);
   std::vector<uint> distances(edges.size(), UINT_MAX);
 
+  // for (size_t i = 0; i < edges.size(); i++)
+  // {
+  //   auto row = edges[i];
+  //   for (size_t j = 0; j < edges.size(); j++)
+  //   {
+  //     printf("%u ", row[j]);
+  //   }
+  //   printf("\n");
+  // }
+
   Timer totalTimer;
 
-  double totalTime = totalTimer.elapsed();
-
   sssp(edges, distances);
+
+  double totalTime = totalTimer.elapsed();
 
   // Profiling results ==================
   printf("total time: %.6fs\n", totalTime);

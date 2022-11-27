@@ -28,7 +28,8 @@ void sssp(const std::vector<std::vector<uint>> &edges,
   frontier.push(Vertex(0, 0));
   uint visitedCount = 0;
 
-  while (visitedCount < numVertices && frontier.size() > 0) {
+  while (frontier.size() > 0) {
+  // while (visitedCount < numVertices && frontier.size() > 0) { // Possible optimization
     auto v = frontier.top();
     frontier.pop();
 
@@ -66,9 +67,9 @@ int main(int argc, char *argv[]) {
 
   Timer totalTimer;
 
-  double totalTime = totalTimer.elapsed();
-
   sssp(edges, distances);
+
+  double totalTime = totalTimer.elapsed();
 
   // Profiling results ==================
   printf("total time: %.6fs\n", totalTime);

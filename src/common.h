@@ -46,19 +46,19 @@ inline bool loadGraphFromFile(std::string fileName,
     edges.push_back(row);
   }
 
-  int i = 0, j;
-
   while (std::getline(f, line)) {
-    j = i + 1;
     std::stringstream sstream(line);
-    std::string str;
-    while (std::getline(sstream, str, ' ')) {
-        uint edgeWeight = (uint)atoi(str.c_str());
-        edges[i][j] = edgeWeight;
-        edges[j][i] = edgeWeight;
-        j++;
-    }
-    i++;
+    std::string i_str;
+    std::string j_str;
+    std::string w_str;
+    std::getline(sstream, i_str, ' ');
+    std::getline(sstream, j_str, ' ');
+    std::getline(sstream, w_str, ' ');
+    uint i = (uint)atoi(i_str.c_str());
+    uint j = (uint)atoi(j_str.c_str());
+    uint w = (uint)atoi(w_str.c_str());
+    edges[i][j] = w;
+    edges[j][i] = w;
   }
   return true;
 }
