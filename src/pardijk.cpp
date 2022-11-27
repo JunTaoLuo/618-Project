@@ -29,6 +29,7 @@ void sssp(const std::vector<std::vector<uint>> &edges,
   uint visitedCount = 0;
 
   while (visitedCount < numVertices && frontier.size() > 0) { // Possible optimization
+  // while (frontier.size() > 0) {
     auto v = frontier.top();
     frontier.pop();
 
