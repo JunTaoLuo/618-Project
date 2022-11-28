@@ -8,7 +8,7 @@ script_dir = os.path.dirname(__file__)
 graph_dir = os.path.join(script_dir, "graphs")
 runtime_ref_path = os.path.join(graph_dir, "runtime-ref.txt")
 
-# Usage: ./checker.py v1/v2 0/1
+# Usage: ./checker.py
 prog = 'pardijk-release'
 if os.environ["HOME"].startswith("/afs/andrew.cmu.edu"):
     workers = [4, 8]
@@ -52,7 +52,7 @@ for i, scene_name in enumerate(ref_perfs.keys()):
         init_file = f'graphs/{scene_name}-init.txt'
         output_file = f'logs/{scene_name}-{worker}.txt'
         log_file = f'logs/{scene_name}-{worker}.log'
-        cmd = f'./{prog} -in {init_file} -o {output_file} > {log_file}'
+        cmd = f'OMP_NUM_THREADS={worker} ./{prog} -in {init_file} -o {output_file} > {log_file}'
         print(f'Command: {cmd}')
         ret = os.system(cmd)
         assert ret == 0, 'ERROR -- nbody exited with errors'

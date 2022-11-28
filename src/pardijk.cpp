@@ -2,50 +2,153 @@
 #include "timing.h"
 #include <climits>
 #include <queue>
+#include <omp.h>
 
-struct Vertex {
-  int index, distance;
-  Vertex(uint _index, uint _distance) : index(_index), distance(_distance) {}
+struct Offer {
+  int vertex, distance;
+  Offer(uint _vertex, uint _distance) : vertex(_vertex), distance(_distance) {}
 
-  bool operator<(const Vertex &o) const {
+  bool operator<(const Offer &o) const {
     // Reverse direction to prioritize lowest values
     return distance > o.distance;
   }
 };
+
+struct OfferOrNull {
+  Offer offer;
+  bool isNull;
+
+  OfferOrNull(Offer _offer, bool _isNull) : offer(_offer), isNull(_isNull) {}
+};
+
+struct GlobalLockPQ {
+  std::priority_queue<Offer> pq;
+  omp_lock_t lock;
+
+  GlobalLockPQ() {
+    omp_init_lock(&lock);
+  }
+
+  void insert(Offer offer) {
+    omp_set_lock(&lock);
+    pq.push(offer);
+    omp_unset_lock(&lock);
+  }
+
+  OfferOrNull deleteMin() {
+    omp_set_lock(&lock);
+
+    if (pq.size() == 0) {
+      omp_unset_lock(&lock);
+      return OfferOrNull(Offer(0, 0), true);
+    }
+
+    auto minOffer = pq.top();
+    pq.pop();
+
+    omp_unset_lock(&lock);
+    return OfferOrNull(minOffer, false);
+  }
+};
+
+struct Graph {
+  std::vector<bool> done;
+  std::vector<std::vector<uint>> edges;
+  std::vector<uint> distances;
+  std::vector<uint> offers;
+  std::vector<omp_lock_t> distanceLocks;
+  std::vector<omp_lock_t> offerLocks;
+  GlobalLockPQ pq;
+
+  Graph(uint numVertices, const std::vector<std::vector<uint>> &_edges, std::vector<uint> &_distances, const GlobalLockPQ &_pq) {
+    done = std::vector<bool>(omp_get_num_threads(), false);
+    offers = std::vector<uint>(numVertices, 0); // 0 indicates no current offer
+    distances = _distances;
+    edges = _edges;
+    pq = _pq;
+    distanceLocks = std::vector<omp_lock_t>(numVertices);
+    offerLocks = std::vector<omp_lock_t>(numVertices);
+
+    for (size_t i = 0; i < numVertices; i++)
+    {
+      omp_init_lock(&(distanceLocks[i]));
+      omp_init_lock(&(offerLocks[i]));
+    }
+  }
+
+  // returns whether distances were updated
+  bool processOffer(Offer offer) {
+    bool updated = false;
+    omp_set_lock(&(distanceLocks[offer.vertex]));
+    if (offer.distance < distances[offer.vertex]) {
+      distances[offer.vertex] = offer.distance;
+      updated = true;
+    }
+    omp_unset_lock(&(distanceLocks[offer.vertex]));
+    return updated;
+  }
+
+  void relax(uint vertex, uint distance) {
+    omp_set_lock(&(offerLocks[vertex]));
+    if (distance < distances[vertex]) {
+      uint offerDistance = offers[vertex];
+      if (offerDistance == 0 || distance < offerDistance) {
+        offers[vertex] = distance;
+        pq.insert(Offer(vertex, distance));
+      }
+    }
+    omp_unset_lock(&(offerLocks[vertex]));
+  }
+};
+
+void sssp_worker(Graph &graph, GlobalLockPQ &pq) {
+  int threadIndex = omp_get_thread_num();
+  int numThreads = omp_get_num_threads();
+
+  while (!graph.done[threadIndex]) {
+    auto result = pq.deleteMin();
+    if (!result.isNull) {
+      if (graph.processOffer(result.offer)) {
+        uint offerVertex = result.offer.vertex;
+        auto neighbors = graph.edges[offerVertex];
+        for (uint i = 0; i < neighbors.size(); i++) {
+          if (i != offerVertex && neighbors[i] != 0 ) {
+            uint newDistance = graph.distances[offerVertex] + neighbors[i];
+            if (newDistance < graph.distances[i]) {
+              graph.relax(i, newDistance);
+            }
+          }
+        }
+      }
+    }
+    else {
+      graph.done[threadIndex] = true;
+      int i;
+      for (i = 0; i < numThreads && graph.done[i]; i++) { }
+      if (i == numThreads) {
+        return;
+      }
+      graph.done[threadIndex] = false;
+    }
+  }
+}
 
 // Single Source Shortest Path: Dijkstra's Algorithm
 // Assume we want distance from node 0
 void sssp(const std::vector<std::vector<uint>> &edges,
           std::vector<uint> &distances) {
   uint numVertices = distances.size();
-  // Keeps track of which node has been visited
-  std::vector<bool> visited(numVertices, false);
-  // Priority queue for tracking the frontier nodes and their distances
-  std::priority_queue<Vertex> frontier;
+  GlobalLockPQ pq = GlobalLockPQ();
+  pq.insert(Offer(0, 0));
+  Graph graph = Graph(numVertices, edges, distances, pq);
 
-  // Visit node 0
-  distances[0] = 0;
-  frontier.push(Vertex(0, 0));
-  uint visitedCount = 0;
-
-  while (visitedCount < numVertices && frontier.size() > 0) { // Possible optimization
-  // while (frontier.size() > 0) {
-    auto v = frontier.top();
-    frontier.pop();
-
-    if (!visited[v.index]) {
-      visited[v.index] = true;
-      visitedCount++;
-    }
-
-    auto neighbors = edges[v.index];
-    for (uint i = 0; i < neighbors.size(); i++) {
-      if (i != v.index && !visited[i] && neighbors[i] != 0 && v.distance + neighbors[i] < distances[i]) {
-        distances[i] = v.distance + neighbors[i];
-        frontier.push(Vertex(i, distances[i]));
-      }
-    }
+  #pragma omp parallel shared(graph, pq)
+  {
+    // printf("Hello world from omp thread %d/%d\n", omp_get_thread_num(), omp_get_num_threads());
+    sssp_worker(graph, pq);
   }
+
+  distances.swap(graph.distances);
 }
 
 int main(int argc, char *argv[]) {
@@ -54,16 +157,6 @@ int main(int argc, char *argv[]) {
   std::vector<std::vector<uint>> edges;
   loadGraphFromFile(options.inputFile, edges);
   std::vector<uint> distances(edges.size(), UINT_MAX);
-
-  // for (size_t i = 0; i < edges.size(); i++)
-  // {
-  //   auto row = edges[i];
-  //   for (size_t j = 0; j < edges.size(); j++)
-  //   {
-  //     printf("%u ", row[j]);
-  //   }
-  //   printf("\n");
-  // }
 
   Timer totalTimer;
 
