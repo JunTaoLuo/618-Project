@@ -94,20 +94,31 @@ struct Graph {
       uint offerDistance = offers[vertex];
       if (offerDistance == 0 || distance < offerDistance) {
         offers[vertex] = distance;
+        // printf("Worker %d inserting new order (%u -> %u)\n", omp_get_thread_num(), vertex, distance);
         pq.insert(Offer(vertex, distance));
       }
     }
     omp_unset_lock(&(offerLocks[vertex]));
   }
+
+  void resetDone() {
+    for (size_t i = 0; i < omp_get_num_threads(); i++)
+    {
+      done[i] = false;
+    }
+  }
 };
 
-void sssp_worker(Graph &graph, GlobalLockPQ &pq) {
+void sssp_worker(Graph &graph) {
   int threadIndex = omp_get_thread_num();
   int numThreads = omp_get_num_threads();
 
+  printf("Worker %d started\n", threadIndex);
+
   while (!graph.done[threadIndex]) {
-    auto result = pq.deleteMin();
+    auto result = graph.pq.deleteMin();
     if (!result.isNull) {
+      // printf("Worker %d retrieved offer (%u -> %u)\n", threadIndex, result.offer.vertex, result.offer.distance);
       if (graph.processOffer(result.offer)) {
         uint offerVertex = result.offer.vertex;
         auto neighbors = graph.edges[offerVertex];
@@ -119,16 +130,19 @@ void sssp_worker(Graph &graph, GlobalLockPQ &pq) {
             }
           }
         }
+        graph.resetDone();
       }
     }
     else {
+      // printf("Worker %d did not retrieve any offers\n", threadIndex);
       graph.done[threadIndex] = true;
-      int i;
-      for (i = 0; i < numThreads && graph.done[i]; i++) { }
-      if (i == numThreads) {
-        return;
+      while (graph.done[threadIndex]) {
+        int i;
+        for (i = 0; i < numThreads && graph.done[i]; i++) { }
+        if (i == numThreads) {
+          return;
+        }
       }
-      graph.done[threadIndex] = false;
     }
   }
 }
@@ -142,10 +156,10 @@ void sssp(const std::vector<std::vector<uint>> &edges,
   pq.insert(Offer(0, 0));
   Graph graph = Graph(numVertices, edges, distances, pq);
 
-  #pragma omp parallel shared(graph, pq)
+  #pragma omp parallel shared(graph)
   {
     // printf("Hello world from omp thread %d/%d\n", omp_get_thread_num(), omp_get_num_threads());
-    sssp_worker(graph, pq);
+    sssp_worker(graph);
   }
 
   distances.swap(graph.distances);
