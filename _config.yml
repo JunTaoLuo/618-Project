@@ -10,4 +10,4 @@ kramdown:
 relative_links:
   enabled: true
 include:
-  - Proposal.md
+  - Index.md
