@@ -65,8 +65,8 @@ We will implement the priority_queue in C++ and develop the benchmark scripts in
 | Nov. 14 - Nov. 20   | Build Data Structures, including Node, Stack, AdoptDesc and PriorityQueue | Completed, Yumin Chen |
 | Nov. 14 - Nov. 20   | Implement the coarse-grained concurrent priority queue | Completed, Jun Tao Luo |
 | Nov. 21 - Nov. 27   | Implement concurrent DELETEMIN, including Logical deletion and batch physical deletion | Completed, Yumin Chen |
-| Nov. 21 - Nov. 27   | Start to work on project milestone report | Completed, Jun Tao Luo and Yumin Chen |
 | Nov. 21 - Nov. 27   | Implement benchmark scripts and reference algorithm (parallel Dijkstra’s) using concurrent priority queues. | Completed, Jun Tao Luo |
+| Nov. 21 - Nov. 27   | Start to work on project milestone report | Completed, Jun Tao Luo and Yumin Chen |
 | Nov. 30   | Finish the project milestone report | Completed, Jun Tao Luo and Yumin Chen |
 | Dec. 2   | Implement concurrent INSERT | In Progress, Jun Tao Luo |
 | Dec. 2   | Test and debug correctness of the MDList priority queue | In Progress, Yumin Chen |
