@@ -4,54 +4,64 @@
 
 using namespace std;
 
+const int Fdel = 0x1, Fadp = 0x1, Fprg = 0x2;
+
 typedef struct AdoptDesc DESC;
-const int Fadp = 0x1, Fprg = 0x2, Fdel = 0x1;
-
-// memory model: memory_order_seq_cst
-
-// TODO: check correctness during implementation
-#define SetMark(p,flag, m) ({p->flag |= m; p;})
-#define ClearMark(p,flag, m) ({p->flag &= ~m; p;})
-#define IsMarked(p, flag, m) ({p->flag & m;})
-
 
 template <int D>
 class PriorityQueue {
 private:
+    struct Val {
+        void *val;
+        int Fdel;
+        Val(): val(nullptr), Fdel(0) {}
+        Val(void* _val): val(_val), Fdel(0) {}
+    };
+    struct Child {
+        Node* node;
+        int Flag;
+        Child(): node(nullptr), Flag(0) {}
+        Child(Node* _node): node(_node), Flag(0) {}
+    }
     struct Node {
         int key;
         vector<int> k;
-        atomic<void*> val; // atomic struct
-        atomic<Node*>* child; // atomic struct
+        atomic<Val> val;
+        atomic<Child*>* child;
         DESC* adesc;
-        int fchild, fdel;
-        Node(int _key): key(_key), adesc(nullptr),fchild(0), fdel(0) {
-            val.load(nullptr);
+        Node(int _key, void* _val): key(_key), adesc(nullptr) {
+            val.store(new Val(_val));
             k = vector<int>(D, 0);
-            child = new atomic<Node*>[D];
+            child = new atomic<Child*>[D];
             for (int i = 0; i < D; i++) {
-                child[i].store(nullptr);
+                child[i].store(new Child());
             }
         }
     };
+    struct HeadNode: public Child {
+        int ver;
+        // TODO: need to change to Child?
+        HeadNode(int _key): Child(Node(_key)), ver(0) {}
+    };
     struct AdoptDesc {
-        Node* curr;
+        atomic<Child*> curr;
         int dp, dc;
     };
-    struct HeadNode: public Node {
-        int ver;
-        HeadNode(int _key): Node(_key), ver(0) {} 
-    };
     struct Stack {
-        atomic<Node*>* node;
+        atomic<Child*>* node;
         HeadNode* head;
         Stack() {
-            node = new atomic<Node*>[D];
+            node = new atomic<Child*>[D];
             head = nullptr;
+            for (int i = 0; i < D; i++) {
+                node[i].store(new Child());
+            }
         }
     };
 
+    // Helper function to map priority to key vector
     vector<int> keyToCoord(int key) {
+        // TODO: move basis to be global variable
         int basis = ceil(power(N, double(1/D)));
         int quotient = key;
         vector<int> k(D);
@@ -62,156 +72,35 @@ private:
         return k;
     }
 
-    void finishInserting(Node* n, int dp, int dc) {
-        if (!n) {
-            return;
-        }
-        AdoptDesc* ad = n->adesc;
-        if (!ad || dc < ad->dp || dp > ad->dc) {
-            return;
-        }
-        Node* child, *cur = ad->curr;
-        dp = ad->dp;
-        dc = ad->dc;
-        for (int i = dp; i < dc; i++) {
-            // TODO: check return type
-            atomic_fetch_or(&(cur->child[i].load(memory_order_relaxed)->flag), Fadp);
-            child = ClearMark(child, fchild, Fadp);
-            atomic_compare_exchange_strong(&n->child[i].load(memory_order_relaxed), nullptr, child);
-        }
-        n->adesc = nullptr;
-    }
-    void purge(HeadNode* hd, Node* prg) {
-        if (hd != head) {
-            return;
-        }
-        HeadNode* hdnew = new HeadNode(), *prgcopy = new Node();
-        *prgcopy = *prg;
-        for (int i = 0; i < D; i++) {
-            prgcopy->child[i].store(nullptr);
-        }
-        hdnew->fdel = Fdel;
-        hdnew->ver = hd->ver + 1;
-        HeadNode* pvt = hd;
-        int d = 0;
-        while (d < D) {
-            bool locatePivot = false;
-            while (prg->k[d] > pvt->k[d]) {
-                finishInserting(pvt, d, d);
-                pvt = ClearMark(pvt->child[d].load(memory_order_relaxed), Fadp|Fprg);
-            }
-            Node* child;
-            // TODO: check correctness
-            do {
-                child = pvt->child[d].load(memory_order_relaxed);
-            } while(!atomic_compare_exchange_strong(&pvt->child[d], child, SetMark(child, Fprg)) && (!IsMarked(child, fchild, Fadp|Fprg)));
-            if (IsMarked(child, fchild, Fprg)) {
-                child = ClearMark(child, fchild, Fprg);
-                locatePivot = true;
-            }
-            if (!locatePivot()) {
-                pvt = hd;
-                d = 0;
-                continue;
-            }
-            if (pvt == hd) {
-                hdnew->child[d].store(child);
-                prgcopy->child[d].load(memory_order_relaxed)->flag = Fdel;
-            } else {
-                prgcopy->child[d].store(child);
-                if (d == 0 || prgcopy->child[d-1].load(memory_order_relaxed)->fdel == Fdel) {
-                    hdnew->child[d].store(prgcopy);
-                }
-            }
-            d++;
-        }
-        hd->val = SetMark(prg, fdel, Fdel);
-        prg->val = SetMark(hdnew, fdel, Fdel);
-        head = hdnew;
-    }
-
 public:
     const int N, R;
     HeadNode* head;
-    atomic<Stack*> stack;
-    PriorityQueue(int _N, int _R): N(_N), R(_R) {
-        // Dummy head node with minimal key 0
+    Stack* stack;
+    PriorityQueue(int _N, int  _R): N(_N), R(_R) {
         this->head = new HeadNode(0);
-        Stack* newStack = new Stack();
-        newStack->node[0].store(head);
-        this->stack.store(newStack);
-        // TODO: what about the headnode in stack initialization
+        Stack* sNew = new Stack();
+        // TODO: filled with the dummy head?
+        sNew->node[0].store(head);
+        this->stack.store(sNew);
     }
-    Node* deleteMin() {
-        Node* min = nullptr;
-        Stack* sOld = this->stack.load(memory_order_relaxed); 
-        // TODO: *s <- *sold??
-        Stack* s = sOld;
-        int d = D - 1;
-        while (d > 0) {
-            Node* last = s->node[d].load(memory_order_relaxed);
-            finishInserting(last, d, d);
-            Node* child = last->child[d];
-            // TODO: Fadp, Fprg
-            ClearMark(child, fchild, Fadp|Fprg);
-            if (!child) {
-                d = d - 1;
-                continue;
-            }
-            void* val = child->val.load(memory_order_relaxed);
-            if (IsMarked(child, fdel, Fdel)) {
-                // TODO: check correctness
-                // s.node[d].child[d] has been marked by competing DELETEMIN threads
-                if (!ClearMark(child, fdel, Fdel)) {
-                    for (int i = d; i < D; i++) {
-                        s->node[i].store(child);
-                    }
-                    d = D - 1;
-                } else {
-                    s->head = ClearMark(child, fdel, Fdel);
-                    for (int i = 0; i < D; i++) {
-                        s->node[i].store(s->head);
-                    }
-                    d = D - 1;
-                }
-            } else if (atomic_compare_exchange_strong(&child->val, &val, SetMark(child, fdel, Fdel))) {
-                for (int i = d; i < D; i++) {
-                    s->node[i].store(child);
-                }
-                min = child;
-                atomic_compare_exchange_strong(&this->stack, &sOld, s);
-                // TODO: add PURGE
-//                 if (marked_node > R && not_purging) {
-//                     purge(s.head, s.node[D-1]);
-//                 }
-                break;
-            }
-        }
-        return min;
-    }
-
     void insert(int key, void* val) {
         Stack* s = new Stack();
-        Node* node = new Node();
-        node->key = key;
-        node->val.store(val);
+        Node* node = new Node(key, val);
         node->k = keyToCoord(key);
-        for (int i = 0; i < D; i++) {
-            node->child[i].store(nullptr);
-        }
+        Child* currNode = new Child(node);
         while (true) {
-            Node* pred = nullptr, *curr = head;
+            Child* pred = nullptr, *curr = head;
             int dp = 0, dc = 0;
             s->head = curr;
             // locatePred;
             while (dc < D) {
-                while (curr && node->k[dc] > curr->k[dc]) {
+                while (curr && currNode->node->k[dc] > curr->node->k[dc]) {
                     pred = curr;
                     dp = dc;
                     finishInserting(curr, dc, dc);
-                    curr = curr->child[dc].load(memory_order_relaxed);
+                    curr = curr->node->child[dc].load(memory_order_seq_cst);
                 }
-                if (curr == nullptr || node->k[dc] < curr->k[dc]) {
+                if (curr == nullptr || currNode->node->k[dc] < curr->node->k[dc]) {
                     break;
                 } else {
                     s->node[dc].store(curr);
@@ -231,59 +120,81 @@ public:
                 node->adesc->dp = dp;
                 node->adesc->dc = dc;
             }
-            // TODO: check the upper boundary
             for (int i = 0; i < dp; i++) {
-                SetMark(node->child[i].load(memory_order_relaxed), fchild, Fadp);
+                Child* currChild = currNode->node->child[i].load(memory_order_seq_cst);
+                currChild->Flag |= Fadp;
+                currNode->node->child[i].store(currChild);
             }
             for (int i = dp; i < D; i++) {
-                node->child[i].store(nullptr);
+                currNode->node->child[i].store(nullptr);
             }
-            node->child[dc].store(curr);
-            if (&pred->child[dp],curr, node) {
-                finishInserting(node, dp, dc);
+            currNode->node->child[dc].store(curr);
+            if (atomic_compare_exchange_strong(&pred->node->child[dp],curr, currNode)) {
+                finishInserting(currNode, dp, dc);
 //                 rewindStack();
-                // TODO: check sNew correctness
-                Stack* sOld = stack, *sNew = s;
+                Stack* sOld = stack;
                 bool first_iteration = true;
                 do {
                     if (s->head->ver == sOld->head->ver) {
-                        if (node->key <= sNew->node[D-1].load(memory_order_relaxed)->key) {
+                        if (currNode->node->key <= sOld->node[D-1].load(memory_order_relaxed)->node->key) {
                             for (int i = dp; i < D; i++) {
                                 s->node[i].store(pred);
                             }
                         } else if (first_iteration) {
-                            *s = *sNew;
-                            first_iteration = true;
+                            s->head = sOld->head;
+                            for (int i = 0; i < D; i++) {
+                                s->node[i].store(sOld->node[i].load(memory_order_seq_cst));
+                            }
+                            first_iteration = false;
                         } else {
                             break;
                         }
                     } else if (s->head->ver > sOld->head->ver) {
-                        Node* prg = ClearMark(sOld->head, fdel, Fdel);
-                        if (prg->key <= sOld->node[D-1].load(memory_order_relaxed)->key) {
-                            s->head = ClearMark(prg, fdel, Fdel);
+                        // Node* prg = ClearMark(sOld->head, fdel, Fdel);
+                        Val* currVal = sold->head->node->val.load(memory_order_seq_cst);
+                        currVal->Fdel &= ~Fdel;
+                        sold->head->node->val.store(currVal);
+                        Child* prg = (Child*)currVal;
+                        if (prg->node->key <= sOld->node[D-1].load(memory_order_relaxed)->node->key) {
+                            Val* prgVal = prg->node->Val.load(memory_order_seq_cst);
+                            prgVal->Fdel &= ~Fdel;
+                            prg->node->Val.store(prgVal);
+                            // TODO: check correctness(what about Fdel flag);
+                            s->head = (HeadNode*) prg->node->Val.load(memory_order_seq_cst);
                             for (int i = 0; i < D; i++) {
                                 s->node[i].store(s->head);
                             }
                         } else if (first_iteration) {
-                            *s = *sOld;
+                            s->head = sOld->head;
+                            for (int i = 0; i < D; i++) {
+                                s->node[i].store(sOld->node[i].load(memory_order_seq_cst));
+                            }
                             first_iteration = false;
                         } else {
                             break;
                         }
                     } else {
                         // TODO: modify to correctness
-                        Node* prg = ClearMark(s->head, fdel, Fdel);
-                        if prg->key <= node->key {
-                            s->head = ClearMark(prg, fdel, Fdel);
+                        // Node* prg = ClearMark(s->head, fdel, Fdel);
+                        Val* headVal = s->head->node->Val.load(memory_order_seq_cst);
+                        headVal->Fdel &= ~Fdel;
+                        s->head->node->Val.store(headVal);
+                        Child* prg = (Child*)headVal;
+                        if prg->key <= currNode->node->key {
+                            Val* prgVal = prg->node->Val.load(memory_order_seq_cst);
+                            prgVal->Fdel &= ~Fdel;
+                            prg->node->Val.store(prgVal);
+                            s->head = (HeadNode*) prgVal;
                             for (int i = 0; i < D; i++) {
                                 s->node[i].store(s->head);
                             }
                         } else {
                             for (int i = dp; i < D; i++) {
-                                s->node[i] = pred;
+                                s->node[i].store(pred);
                             }
                         }
                     }
+                    // TODO: change IsMarked
                 } while(atomic_compare_exchange_strong(&stack, sNew, s) || IsMarked(prg, fdel, Fdel));
                 break;
              }
