@@ -194,7 +194,6 @@ public:
                             }
                         }
                     }
-                    // TODO: change IsMarked
                 } while(atomic_compare_exchange_strong(&stack, sNew, s) || IsMarked(prg, fdel, Fdel));
                 break;
              }
