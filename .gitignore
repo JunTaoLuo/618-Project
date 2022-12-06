@@ -3,5 +3,6 @@
 !/**/
 !*.*
 !Makefile
+*.exe
 .vscode
 logs
