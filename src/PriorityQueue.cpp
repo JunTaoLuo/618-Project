@@ -319,7 +319,7 @@ private:
         for (int i = 0; i < D-1; i++) {
             cout << node->k[i] << ", ";
         }
-        cout << node->k[D-1] << "]: " << (node->val == nullptr ? -1 : *((int*)node->val)) << endl;
+        cout << node->k[D-1] << "]: " << endl;
 
         for (int i = D-1; i >= dim; i--) {
             string childPrefix = prefix;
