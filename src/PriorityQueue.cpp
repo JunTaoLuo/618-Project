@@ -222,6 +222,16 @@ public:
     void printHelper() {
         printHelper(this->head, "0");
     }
+    void printStack() {
+        cout << "Print the deletion stack" << endl;
+        Stack* curStack = this->stack.load();
+        cout << "The head of the stack is: " << curStack->head->key << endl;
+        cout << "The nodes of the stack are: " << endl;
+        for (int i = 0; i < D; i++) {
+            Node* curNode = curStack->node[i].load();
+            cout << curNode->key << endl;
+        }
+    }
     // TODO: Change the return type
     int deleteMin() {
         Node* min = nullptr;
@@ -320,9 +330,6 @@ int main() {
     //     cout << endl;
     // }
     pq->insert(1, nullptr);
-    pq->insert(2, nullptr);
-    pq->insert(3, nullptr);
-    pq->insert(4, nullptr);
     pq->insert(6, nullptr);
     pq->insert(10, nullptr);
     pq->insert(12, nullptr);
@@ -359,5 +366,14 @@ int main() {
     cout << minVal << endl;
     cout << "After the deletion -----------------------------" << endl;
     pq->printHelper();
+    pq->printStack();
+    cout << "Insert some smaller nodes ----------------------" << endl;
+    // pq->insert(1, nullptr);
+    // pq->insert(2, nullptr);
+    pq->insert(3, nullptr);
+    pq->insert(4, nullptr);
+    cout << "After the insertin ------------------------------" << endl;
+    pq->printHelper();
+    pq->printStack();
     return 0;
 }
