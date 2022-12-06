@@ -97,6 +97,47 @@ private:
         }
         n->adesc = nullptr;
     }
+    void purge(Node* hd, Node* prg) {
+        if (hd != head) {
+            return;
+        }
+        Node* hdNew = new Node(0), *prgCopy = new Node(0);
+        *prgCopy = *prg;
+        for (int i = 0; i < D; i++) {
+            prgCopy->child[i].store(nullptr);
+        }
+        hdNew->val = reinterpret_cast<void *>(Fdel);
+        hdNew->ver = hd->ver + 1;
+        Node* child;
+        Node* pvt = hd;
+        for (int d = 0; d < D;) {
+            bool locatePivot = true;
+            // LocatePivot
+            uintptr_t unitPtr;
+            while(prg->k[d] > pvt->k[d]) {
+                finishInserting(pvt, d, d);
+                pvt = reinterpret_cast<Node*>(ClearMark(reinterpret_cast<uintptr_t>(pvt->child[d].load(memory_order_seq_cst)), Fadp|Fprg));
+            }
+            do {
+                child = pvt->child[d].load(memory_order_seq_cst);
+                unitPtr = reinterpret_cast<uintptr_t>(child);
+            } while(pvt->child[d].compare_exchange_strong(child, reinterpret_cast<Node*>(SetMark(unitPtr, Fprg))) || IsMarked(unitPtr, Fadp|Fprg));
+            if (IsMarked(unitPtr, Fprg)) {
+                child = reinterpret_cast<Node*>(unitPtr, Fprg);
+            } else {
+                locatePivot = false;
+            }
+            if (!locatePivot) {
+                pvt = hd;
+                d = 0;
+                continue;
+            }
+            if (pvt == hd) {
+                hdNew->child[d].store(child);
+                prgCopy
+            }
+        }
+    }
 
 public:
     const int N, R;
@@ -216,7 +257,7 @@ public:
                             }
                         }
                     }
-                } while(stack.compare_exchange_strong(sNew, s) || IsMarked(reinterpret_cast<uintptr_t>(node->val.load()), Fdel));
+                } while(stack.compare_exchange_strong(sNew, s) || IsMarked(reinterpret_cast<uintptr_t>(node->val.load(memory_order_seq_cst)), Fdel));
                 break;
              }
         }
