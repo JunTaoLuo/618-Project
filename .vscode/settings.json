@@ -1,6 +1,10 @@
 {
     "files.associations": {
         "atomic": "cpp",
-        "cmath": "cpp"
+        "cmath": "cpp",
+        "*.tcc": "cpp",
+        "random": "cpp",
+        "bitset": "cpp",
+        "string_view": "cpp"
     }
 }

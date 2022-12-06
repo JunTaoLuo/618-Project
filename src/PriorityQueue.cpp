@@ -1,7 +1,9 @@
 #include <iostream>
+#include <bitset>
 #include <atomic>
 #include <cmath>
 #include <vector>
+#include <boost/algorithm/string/join.hpp>
 
 using namespace std;
 
@@ -220,7 +222,7 @@ public:
         }
     }
     void printHelper() {
-        printHelper(this->head, "0");
+        printHelper(this->head, 0, "│");
     }
     void printStack() {
         cout << "Print the deletion stack" << endl;
@@ -287,20 +289,46 @@ public:
         return min->key;
     }
 private:
-    void printHelper(Node* node, string dimension) {
-        uintptr_t uintPtr = IsMarked(reinterpret_cast<uintptr_t>(node), Fadp);
-        // cout << uintPtr << endl;
-        if (node == nullptr || uintPtr) {
-            // cout << "is null or marked" << endl;
+    void printHelper(Node* node, int dim, string prefix) {
+        if (node == nullptr) {
             return;
         }
 
-        cout << node->key << " " << dimension << endl;
-        for (int i = 0; i < D; i++) {
-            dimension.push_back('0'+i);
-            printHelper(node->child[i].load(memory_order_seq_cst), dimension);
-            dimension.pop_back();
+        uintptr_t uintptr = reinterpret_cast<uintptr_t>(node);
+        uintptr_t flags = IsMarked(uintptr, Fadp|Fprg);
+        node = reinterpret_cast<Node*>(ClearMark(uintptr, Fadp|Fprg));
+
+        bool lastChild = node->child[dim] == nullptr;
+
+        // cout << prefix.length() << endl;
+        string newPrefix = prefix;
+        newPrefix.pop_back();
+        newPrefix.pop_back();
+        newPrefix.pop_back();
+        if (lastChild) {
+            newPrefix += "└";
+            prefix.pop_back();
+            prefix.pop_back();
+            prefix.pop_back();
+            prefix += " ";
+        } else {
+            newPrefix += "├";
         }
+
+        cout << newPrefix << node->key << " (" << std::bitset<2>(flags) << ") [";
+        for (int i = 0; i < D-1; i++) {
+            cout << node->k[i] << ", ";
+        }
+        cout << node->k[D-1] << "]: " << (node->val == nullptr ? -1 : *((int*)node->val)) << endl;
+
+        for (int i = D-1; i >= dim; i--) {
+            string childPrefix = prefix;
+            for (int j = dim; j < i; j++) {
+                childPrefix += "│";
+            }
+            printHelper(node->child[i], i, childPrefix);
+        }
+
     }
 };
 
@@ -320,6 +348,7 @@ vector<int> keyToCoord(int key) {
 }
 
 int main() {
+
     auto pq = new PriorityQueue<3>(64, 100);
     // for (int i = 0; i < 64; i++) {
     //     vector<int> k = keyToCoord(i);

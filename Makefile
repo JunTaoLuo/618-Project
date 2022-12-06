@@ -18,7 +18,10 @@ HEADERS := src/*.h
 .SUFFIXES:
 .PHONY: all clean
 
-all: dijk-$(CONFIGURATION) pardijk-$(CONFIGURATION)
+all: dijk-$(CONFIGURATION) pardijk-$(CONFIGURATION) PriorityQueue
+
+PriorityQueue: $(HEADERS) src/PriorityQueue.cpp
+	$(CXX) -o $@ $(CFLAGS) src/PriorityQueue.cpp
 
 pardijk-$(CONFIGURATION): $(HEADERS) src/pardijk.cpp
 	$(CXX) -o $@ $(CFLAGS) src/pardijk.cpp
