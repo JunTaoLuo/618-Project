@@ -20,7 +20,7 @@ private:
         int ver;
         int key;
         vector<int> k;
-        void* val;
+        atomic<void*> val;
         atomic<Node*>* child;
         AdoptDesc* adesc;
         Node(int _key): key(_key), val(nullptr), ver(0), adesc(nullptr) {
@@ -185,7 +185,7 @@ public:
                         Node* prg = reinterpret_cast<Node*>(ClearMark(uintPtr, Fadp|Fprg));
                         if (prg->key <= sOld->node[D-1].load(memory_order_seq_cst)->key) {
                             // TODO: check correctness(what about Fdel flag);
-                            uintPtr = reinterpret_cast<uintptr_t>(prg->val);
+                            uintPtr = reinterpret_cast<uintptr_t>(prg->val.load(memory_order_seq_cst));
                             s->head = reinterpret_cast<Node*>(ClearMark(uintPtr, Fdel));
                             for (int i = 0; i < D; i++) {
                                 s->node[i].store(s->head);
@@ -200,10 +200,10 @@ public:
                             break;
                         }
                     } else {
-                        uintptr_t uintPtr = reinterpret_cast<uintptr_t>(s->head->val);
+                        uintptr_t uintPtr = reinterpret_cast<uintptr_t>(s->head->val.load(memory_order_seq_cst));
                         Node* prg = reinterpret_cast<Node *>(ClearMark(uintPtr, Fdel));
                         if (prg->key <= node->key) {
-                            uintPtr = reinterpret_cast<uintptr_t>(prg->val);
+                            uintPtr = reinterpret_cast<uintptr_t>(prg->val.load(memory_order_seq_cst));
                             s->head = reinterpret_cast<Node *>(ClearMark(uintPtr, Fdel));
                             for (int i = 0; i < D; i++) {
                                 s->node[i].store(s->head);
@@ -214,13 +214,67 @@ public:
                             }
                         }
                     }
-                } while(stack.compare_exchange_strong(sNew, s) || IsMarked(reinterpret_cast<uintptr_t>(node->val), Fdel));
+                } while(stack.compare_exchange_strong(sNew, s) || IsMarked(reinterpret_cast<uintptr_t>(node->val.load()), Fdel));
                 break;
              }
         }
     }
     void printHelper() {
         printHelper(this->head, "0");
+    }
+    // TODO: Change the return type
+    int deleteMin() {
+        Node* min = nullptr;
+        Stack* sOld = stack, *s = new Stack();
+        *s = *sOld;
+        // s->head = sOld->head;
+        // for (int i = 0; i < D; i++) {
+        //     s->node[i].store(sOld->node[i].load(memory_order_seq_cst));
+        // }
+        int d = D - 1;
+        while (d > 0) {
+            Node* last = s->node[d].load(memory_order_seq_cst);
+            finishInserting(last, d, d);
+            Node* child = last->child[d].load(memory_order_seq_cst);
+            uintptr_t uintPtr = reinterpret_cast<uintptr_t>(child);
+            child = reinterpret_cast<Node*>(ClearMark(uintPtr, Fadp|Fprg));
+            if (!child) {
+                d = d - 1;
+                continue;
+            }
+            void* val = child->val.load();
+            if (IsMarked(reinterpret_cast<uintptr_t>(val), Fdel)) {
+                uintPtr = reinterpret_cast<uintptr_t>(val);
+                if (!ClearMark(uintPtr, Fdel)) {
+                    for (int i = d; i < D; i++) {
+                        s->node[i].store(child);
+                    }
+                    d = D - 1;
+                } else {
+                    s->head = reinterpret_cast<Node*>(ClearMark(uintPtr, Fdel));
+                    for (int i = 0; i < D; i++) {
+                        s->node[i].store(s->head);
+                    }
+                    d = D - 1;
+                }
+            } else {
+                uintptr_t uintPtr = reinterpret_cast<uintptr_t>(val);
+                if (child->val.compare_exchange_strong(val, reinterpret_cast<void *>(SetMark(uintPtr, Fdel)))) {
+                    for (int i = d; i < D; i++) {
+                        s->node[i].store(child);
+                    }
+                    min = child;
+                    stack.compare_exchange_strong(sOld, s);
+                    /**
+                     * if (marked_node > R && not_purging) {
+                     *  purge(s->head, s.node[D - 1])
+                     * }
+                     */
+                }
+                break;
+            }
+        }
+        return min->key;
     }
 private:
     void printHelper(Node* node, string dimension) {
@@ -294,6 +348,16 @@ int main() {
 
     pq->insert(32, nullptr);
 
+    cout << "After the insertion -----------------------------" << endl;
+    pq->printHelper();
+    cout << "Delete the min value ----------------------------" << endl;
+    int minVal = pq->deleteMin();
+    cout << minVal << endl;
+    minVal = pq->deleteMin();
+    cout << minVal << endl;
+    minVal = pq->deleteMin();
+    cout << minVal << endl;
+    cout << "After the deletion -----------------------------" << endl;
     pq->printHelper();
     return 0;
 }
