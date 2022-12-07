@@ -116,7 +116,8 @@ private:
             uintptr_t unitPtr;
             while(prg->k[d] > pvt->k[d]) {
                 finishInserting(pvt, d, d);
-                pvt = reinterpret_cast<Node*>(ClearMark(reinterpret_cast<uintptr_t>(pvt->child[d].load(memory_order_seq_cst)), Fadp|Fprg));
+                unitPtr = reinterpret_cast<uintptr_t>(pvt->child[d].load(memory_order_seq_cst));
+                pvt = reinterpret_cast<Node*>(ClearMark(unitPtr, Fadp|Fprg));
             }
             do {
                 child = pvt->child[d].load(memory_order_seq_cst);
@@ -134,13 +135,25 @@ private:
             }
             if (pvt == hd) {
                 hdNew->child[d].store(child);
-                prgCopy
+                prgCopy->child[d].store(reinterpret_cast<Node*>(Fdel));
+            } else {
+                prgCopy->child[d].store(child);
+                if (d == 0 || prgCopy.child[d - 1].load(memory_order_seq_cst) == reinterpret_cast<Node*>(Fdel)) {
+                    hdNew->child[d].store(prgCopy);
+                }
             }
+            d = d + 1;
         }
+        uintptr_t uintPtr = reinterpret_cast<uintptr_t>(prg);
+        uintptr_t uintPtrForHdNew = reinterpret_cast<uintptr_t>(hdNew);
+        hd->val.store(reinterpret_cast<void*>(uintPtr, Fdel));
+        prg->val.store(reinterpret_cast<void*>(uintPtrForHdNew, Fdel));
+        head = hdNew;
     }
 
 public:
     const int N, R;
+    int markedNode;
     Node* head;
     atomic<Stack*> stack;
     PriorityQueue(int _N, int  _R):N(_N), R(_R) {
@@ -152,6 +165,7 @@ public:
             sNew->node[i].store(head);
         }
         this->stack.store(sNew);
+        markedNode = 0;
     }
     // TODO: Not Implement yet!
     ~PriorityQueue();
@@ -318,6 +332,10 @@ public:
                     }
                     min = child;
                     stack.compare_exchange_strong(sOld, s);
+                    markedNode++;
+                    if (markedNode > R) {
+                        purge(s->head.load(memory_order_seq_cst), s->node[D- 1].load(memory_order_seq_cst));
+                    }
                     /**
                      * if (marked_node > R && not_purging) {
                      *  purge(s->head, s.node[D - 1])
