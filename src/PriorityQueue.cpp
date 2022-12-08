@@ -3,7 +3,7 @@
 #include <atomic>
 #include <cmath>
 #include <vector>
-#include <boost/algorithm/string/join.hpp>
+// #include <boost/algorithm/string/join.hpp>
 
 using namespace std;
 
@@ -25,6 +25,13 @@ private:
         atomic<void*> val;
         atomic<Node*>* child;
         AdoptDesc* adesc;
+        Node(): key(0), val(nullptr), ver(0), adesc(nullptr) {
+            k = vector<int>(D, 0);
+            child = new atomic<Node*>[D];
+            for (int i = 0; i < D; i++) {
+                child[i].store(nullptr);
+            }
+        }
         Node(int _key): key(_key), val(nullptr), ver(0), adesc(nullptr) {
             k = vector<int>(D, 0);
             child = new atomic<Node*>[D];
@@ -57,6 +64,11 @@ private:
                 node[i].store(nullptr);
             }
         }
+    };
+    struct PurgeFlag {
+        int markedNode;
+        bool notPurging;
+        PurgeFlag(int _markedNode, bool _notPurging): markedNode(_markedNode), notPurging(_notPurging) {}
     };
 
     // Helper function to map priority to key vector
@@ -102,7 +114,12 @@ private:
             return;
         }
         Node* hdNew = new Node(0), *prgCopy = new Node(0);
-        *prgCopy = *prg;
+        // *prgCopy = *prg;
+        prgCopy->adesc = prg->adesc;
+        prgCopy->k = prg->k;
+        prgCopy->key = prg->key;
+        prgCopy->ver = prg->ver;
+        prgCopy->val.store(prgCopy->val);
         for (int i = 0; i < D; i++) {
             prgCopy->child[i].store(nullptr);
         }
@@ -138,7 +155,7 @@ private:
                 prgCopy->child[d].store(reinterpret_cast<Node*>(Fdel));
             } else {
                 prgCopy->child[d].store(child);
-                if (d == 0 || prgCopy.child[d - 1].load(memory_order_seq_cst) == reinterpret_cast<Node*>(Fdel)) {
+                if (d == 0 || prgCopy->child[d - 1].load(memory_order_seq_cst) == reinterpret_cast<Node*>(Fdel)) {
                     hdNew->child[d].store(prgCopy);
                 }
             }
@@ -153,9 +170,10 @@ private:
 
 public:
     const int N, R;
-    int markedNode;
     Node* head;
     atomic<Stack*> stack;
+    atomic<int> markedNode;
+    atomic<bool> notPurging;
     PriorityQueue(int _N, int  _R):N(_N), R(_R) {
         this->head = new Node(0);
         Stack* sNew = new Stack();
@@ -165,7 +183,8 @@ public:
             sNew->node[i].store(head);
         }
         this->stack.store(sNew);
-        markedNode = 0;
+        markedNode.store(0);
+        notPurging.store(true);
     }
     // TODO: Not Implement yet!
     ~PriorityQueue();
@@ -192,7 +211,15 @@ public:
                     dc++;
                 }
             }
-
+            // testing: 
+            // cout << "testing stack -------------------------------------" << key << " " << s->head->key << " " << dp << " " << dc << endl;
+            // for (int i = 0; i < D; i++) {
+            //     Node* curNode = s->node[i].load();
+            //     if (curNode) {
+            //         cout << curNode->key << " ";
+            //     }
+            // }
+            // cout << endl;
             if (dc == D) {
                 break;
             }
@@ -222,9 +249,12 @@ public:
                 Stack* sOld = stack.load(memory_order_seq_cst), * sNew;
                 bool first_iteration = true;
                 do {
-                    sNew = stack.load(memory_order_seq_cst);
+                    sNew = stack;
                     if (s->head->ver == sOld->head->ver) {
                         if (node->key <= sNew->node[D-1].load(memory_order_seq_cst)->key) {
+                            // MOdified: There is a bug at line 254 if we follow the proof 4 on page 10
+                            // Test case will be displayed on PR
+                            // for (int i = dp + 1; i < D; i++) {
                             for (int i = dp; i < D; i++) {
                                 s->node[i].store(pred);
                             }
@@ -233,6 +263,7 @@ public:
                             for (int i = 0; i < D; i++) {
                                 s->node[i].store(sNew->node[i].load(memory_order_seq_cst));
                             }
+                            // *s = *sNew;
                             first_iteration = false;
                         } else {
                             break;
@@ -252,6 +283,7 @@ public:
                             for (int i = 0; i < D; i++) {
                                 s->node[i].store(sOld->node[i].load(memory_order_seq_cst));
                             }
+                            // *s = *sOld;
                             first_iteration = false;
                         } else {
                             break;
@@ -266,6 +298,9 @@ public:
                                 s->node[i].store(s->head);
                             }
                         } else {
+                            // MOdified: There is a bug if we follow the proof 4 on page 10
+                            // Test case will be displayed on PR
+                            // for (int i = dp + 1; i < D; i++) {
                             for (int i = dp; i < D; i++) {
                                 s->node[i].store(pred);
                             }
@@ -296,22 +331,24 @@ public:
         *s = *sOld;
         // s->head = sOld->head;
         // for (int i = 0; i < D; i++) {
-        //     s->node[i].store(sOld->node[i].load(memory_order_seq_cst));
+        //     s->node[i].store(sOld->node[i]);
         // }
         int d = D - 1;
-        while (d > 0) {
+        // Modified: change the codition from d > 0 --> d >= 0 
+        while (d >= 0) {
             Node* last = s->node[d].load(memory_order_seq_cst);
             finishInserting(last, d, d);
             Node* child = last->child[d].load(memory_order_seq_cst);
             uintptr_t uintPtr = reinterpret_cast<uintptr_t>(child);
             child = reinterpret_cast<Node*>(ClearMark(uintPtr, Fadp|Fprg));
+            // cout << "child is:" << d << " " << child << endl;
             if (!child) {
                 d = d - 1;
                 continue;
             }
-            void* val = child->val.load();
+            void* val = child->val.load(memory_order_seq_cst);
+            uintPtr = reinterpret_cast<uintptr_t>(val);
             if (IsMarked(reinterpret_cast<uintptr_t>(val), Fdel)) {
-                uintPtr = reinterpret_cast<uintptr_t>(val);
                 if (!ClearMark(uintPtr, Fdel)) {
                     for (int i = d; i < D; i++) {
                         s->node[i].store(child);
@@ -325,27 +362,28 @@ public:
                     d = D - 1;
                 }
             } else {
-                uintptr_t uintPtr = reinterpret_cast<uintptr_t>(val);
+                // uintptr_t uintPtr = reinterpret_cast<uintptr_t>(val);
                 if (child->val.compare_exchange_strong(val, reinterpret_cast<void *>(SetMark(uintPtr, Fdel)))) {
                     for (int i = d; i < D; i++) {
                         s->node[i].store(child);
                     }
                     min = child;
                     stack.compare_exchange_strong(sOld, s);
-                    markedNode++;
-                    if (markedNode > R) {
-                        purge(s->head.load(memory_order_seq_cst), s->node[D- 1].load(memory_order_seq_cst));
+                    int ori = markedNode.fetch_add(1);
+                    bool expected = true;
+                    bool target = false;
+                    if (ori > R - 1 && notPurging.compare_exchange_strong(expected, target)) {
+                        purge(s->head, s->node[D- 1].load(memory_order_seq_cst));
+                        markedNode.store(R - ori - 1);
+                        notPurging.compare_exchange_strong(target, expected);
                     }
-                    /**
-                     * if (marked_node > R && not_purging) {
-                     *  purge(s->head, s.node[D - 1])
-                     * }
-                     */
                 }
                 break;
             }
         }
-        return min->key;
+        // return min->key;
+        // cout << "min address is " << min << endl;
+        return min == nullptr? -1: min->key;
     }
 private:
     void printHelper(Node* node, int dim, string prefix) {
@@ -417,7 +455,10 @@ int main() {
     //     }
     //     cout << endl;
     // }
-    pq->insert(1, nullptr);
+    // pq->insert(1, nullptr);
+    // pq->insert(2, nullptr);
+    // pq->insert(3, nullptr);
+    // pq->insert(4, nullptr);
     pq->insert(6, nullptr);
     pq->insert(10, nullptr);
     pq->insert(12, nullptr);
@@ -425,6 +466,7 @@ int main() {
     pq->insert(18, nullptr);
     pq->insert(19, nullptr);
     pq->insert(22, nullptr);
+    pq->insert(23, nullptr);
     pq->insert(25, nullptr);
     pq->insert(33, nullptr);
     pq->insert(34, nullptr);
@@ -441,25 +483,27 @@ int main() {
     pq->insert(62, nullptr);
     pq->insert(63, nullptr);
 
-    pq->insert(32, nullptr);
-
     cout << "After the insertion -----------------------------" << endl;
     pq->printHelper();
     cout << "Delete the min value ----------------------------" << endl;
-    int minVal = pq->deleteMin();
-    cout << minVal << endl;
-    minVal = pq->deleteMin();
-    cout << minVal << endl;
-    minVal = pq->deleteMin();
-    cout << minVal << endl;
-    cout << "After the deletion -----------------------------" << endl;
+    for (int i = 0; i < 8; i++) {
+        int minVal = pq->deleteMin();
+        cout << minVal << endl;
+    }
+    cout << "After the deletion1 -----------------------------" << endl;
     pq->printHelper();
     pq->printStack();
+    cout << "After the deletion2 -----------------------------" << endl;
+    // pq->printHelper();
+    int minVal = pq->deleteMin();
+    cout << minVal << endl;
+    pq->printStack();
     cout << "Insert some smaller nodes ----------------------" << endl;
-    // pq->insert(1, nullptr);
-    // pq->insert(2, nullptr);
+    pq->insert(1, nullptr);
+    pq->insert(2, nullptr);
     pq->insert(3, nullptr);
-    pq->insert(4, nullptr);
+    // pq->insert(4, nullptr);
+    // pq->insert(32, nullptr);
     cout << "After the insertin ------------------------------" << endl;
     pq->printHelper();
     pq->printStack();
