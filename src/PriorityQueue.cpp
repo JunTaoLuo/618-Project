@@ -21,14 +21,13 @@ private:
     struct Node {
         int ver;
         int key;
-        vector<int> k;
+        int k[D] = {0};
         atomic<void*> val;
         atomic<Node*>* child;
         AdoptDesc* adesc;
         Node(): Node(0, nullptr) {}
         Node(int _key): Node(_key, nullptr) {}
         Node(int _key, void* _val): key(_key), val(_val), ver(0), adesc(nullptr) {
-            k = vector<int>(D, 0);
             child = new atomic<Node*>[D];
             for (int i = 0; i < D; i++) {
                 child[i].store(nullptr);
@@ -58,16 +57,12 @@ private:
     };
 
     // Helper function to map priority to key vector
-    vector<int> keyToCoord(int key) {
-        // TODO: move basis to be global variable
-        int basis = ceil(pow(N, 1.0/D));
+    void keyToCoord(int key, int* k) {
         int quotient = key;
-        vector<int> k(D);
-        for (int i = D - 1; i >= 0; i--) {
+        for (int i = D-1; quotient && i >= 0 ; i--) {
             k[i] = quotient % basis;
             quotient = quotient / basis;
         }
-        return k;
     }
 
     void finishInserting(Node* n, int dp, int dc) {
@@ -102,7 +97,7 @@ private:
         Node* hdNew = new Node(0), *prgCopy = new Node(0);
         // *prgCopy = *prg;
         prgCopy->adesc = prg->adesc;
-        prgCopy->k = prg->k;
+        copy(begin(prg->k), end(prg->k), begin(prgCopy->k));
         prgCopy->key = prg->key;
         prgCopy->ver = prg->ver;
         prgCopy->val.store(prgCopy->val);
@@ -178,7 +173,7 @@ public:
     void insert(int key, void* val) {
         Stack* s = new Stack();
         Node* node = new Node(key, val);
-        node->k = keyToCoord(key);
+        keyToCoord(key, node->k );
         while (true) {
             Node* pred = nullptr, *curr = head;
             int dp = 0, dc = 0;
@@ -417,6 +412,7 @@ private:
 
 int main() {
 
+    // auto pq = new PriorityQueue<8, 4294967295, 100, long, long>();
     auto pq = new PriorityQueue<3, 64, 100, long, long>();
 
     pq->insert(1, nullptr);
