@@ -11,7 +11,7 @@ graph_dir = os.path.join(script_dir, "graphs")
 ref_executable = os.path.join(script_dir, "dijk-release")
 runtime_ref_path = os.path.join(graph_dir, "runtime-ref.txt")
 
-graph_sizes = [64, 256, 1024, 4096, 8192]
+graph_sizes = [64, 256, 1024, 4096, 8191]
 runtime_ref = []
 
 for graph_size in graph_sizes:
@@ -30,7 +30,7 @@ for graph_size in graph_sizes:
         for i in range(graph_size-1):
             for j in range(i+1, graph_size):
                 if (edges[edge_index] == 1):
-                    f.write(f"{i} {j} {random.randint(1, 99)}\n")
+                    f.write(f"{i} {j} {random.randint(1, 64)}\n")
                 edge_index += 1
 
     ref_path = os.path.join(graph_dir, f"bench-{graph_size}-ref.txt")

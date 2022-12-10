@@ -13,7 +13,7 @@ int Fdel = 0x1, Fadp = 0x1, Fprg = 0x2;
 #define ClearMark(p, m) ({p &= ~m; p;})
 #define IsMarked(p, m) ({p & m;})
 
-template <int D>
+template <int D, long N, int R, typename TKey, typename TVal>
 class PriorityQueue {
 private:
 // public:
@@ -25,20 +25,8 @@ private:
         atomic<void*> val;
         atomic<Node*>* child;
         AdoptDesc* adesc;
-        Node(): key(0), val(nullptr), ver(0), adesc(nullptr) {
-            k = vector<int>(D, 0);
-            child = new atomic<Node*>[D];
-            for (int i = 0; i < D; i++) {
-                child[i].store(nullptr);
-            }
-        }
-        Node(int _key): key(_key), val(nullptr), ver(0), adesc(nullptr) {
-            k = vector<int>(D, 0);
-            child = new atomic<Node*>[D];
-            for (int i = 0; i < D; i++) {
-                child[i].store(nullptr);
-            }
-        }
+        Node(): Node(0, nullptr) {}
+        Node(int _key): Node(_key, nullptr) {}
         Node(int _key, void* _val): key(_key), val(_val), ver(0), adesc(nullptr) {
             k = vector<int>(D, 0);
             child = new atomic<Node*>[D];
@@ -50,9 +38,7 @@ private:
     struct AdoptDesc {
         Node* curr;
         int dp, dc;
-        AdoptDesc(): curr(nullptr), dp(0), dc(0) {
-
-        }
+        AdoptDesc(): curr(nullptr), dp(0), dc(0) {}
     };
     struct Stack {
         atomic<Node*>* node;
@@ -169,12 +155,13 @@ private:
     }
 
 public:
-    const int N, R;
+    int basis;
     Node* head;
     atomic<Stack*> stack;
     atomic<int> markedNode;
     atomic<bool> notPurging;
-    PriorityQueue(int _N, int  _R):N(_N), R(_R) {
+    PriorityQueue() {
+        basis = ceil(pow(N, 1.0/D));
         this->head = new Node(0);
         Stack* sNew = new Stack();
         // TODO: filled with the dummy head?
@@ -397,7 +384,6 @@ private:
 
         bool lastChild = node->child[dim] == nullptr;
 
-        // cout << prefix.length() << endl;
         string newPrefix = prefix;
         newPrefix.pop_back();
         newPrefix.pop_back();
@@ -429,36 +415,14 @@ private:
     }
 };
 
-vector<int> keyToCoord(int key) {
-    // TODO: move basis to be global variable
-    int basis = ceil(pow(64, 1.0/3));
-    // cout << key << " basis is " << basis << endl;
-    int quotient = key;
-    vector<int> k(3);
-    for (int i = 2; i >= 0; i--) {
-        k[i] = quotient % basis;
-        quotient = quotient / basis;
-        // cout << i << k[i] << " ";
-    }
-    // cout << endl;
-    return k;
-}
-
 int main() {
 
-    auto pq = new PriorityQueue<3>(64, 100);
-    // for (int i = 0; i < 64; i++) {
-    //     vector<int> k = keyToCoord(i);
-    //     cout << i << " ";
-    //     for (int j = 0; j < 3; j++) {
-    //         cout << k[j] << " ";
-    //     }
-    //     cout << endl;
-    // }
-    // pq->insert(1, nullptr);
-    // pq->insert(2, nullptr);
-    // pq->insert(3, nullptr);
-    // pq->insert(4, nullptr);
+    auto pq = new PriorityQueue<3, 64, 100, long, long>();
+
+    pq->insert(1, nullptr);
+    pq->insert(2, nullptr);
+    pq->insert(3, nullptr);
+    pq->insert(4, nullptr);
     pq->insert(6, nullptr);
     pq->insert(10, nullptr);
     pq->insert(12, nullptr);
@@ -504,7 +468,7 @@ int main() {
     pq->insert(3, nullptr);
     // pq->insert(4, nullptr);
     // pq->insert(32, nullptr);
-    cout << "After the insertin ------------------------------" << endl;
+    cout << "After the insertion ------------------------------" << endl;
     pq->printHelper();
     pq->printStack();
     return 0;
