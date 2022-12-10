@@ -13,6 +13,16 @@ int Fdel = 0x1, Fadp = 0x1, Fprg = 0x2;
 #define ClearMark(p, m) ({p &= ~m; p;})
 #define IsMarked(p, m) ({p & m;})
 
+// Creating and retrieving Val
+#define CreateDeletedVal(v) (v << 1)
+#define CreateVal(v) (v << 1)
+#define GetVal(v) (v >> 1)
+// Val flags
+#define SetDel(val) ({val |= 1; val.load();})
+#define ClearDel(val) ({val &= ~1; val.load();})
+#define IsDel(val) (val & 1)
+
+
 template <int D, long N, int R, typename TKey, typename TVal>
 class PriorityQueue {
 private:
@@ -22,12 +32,12 @@ private:
         int ver;
         int key;
         int k[D] = {0};
-        atomic<void*> val;
+        atomic<TVal> val;
         atomic<Node*>* child;
         AdoptDesc* adesc;
-        Node(): Node(0, nullptr) {}
-        Node(int _key): Node(_key, nullptr) {}
-        Node(int _key, void* _val): key(_key), val(_val), ver(0), adesc(nullptr) {
+        Node(): Node(0, 0) {}
+        Node(int _key): Node(_key, 0) {}
+        Node(int _key, TVal _val): key(_key), val(_val), ver(0), adesc(nullptr) {
             child = new atomic<Node*>[D];
             for (int i = 0; i < D; i++) {
                 child[i].store(nullptr);
@@ -104,7 +114,7 @@ private:
         for (int i = 0; i < D; i++) {
             prgCopy->child[i].store(nullptr);
         }
-        hdNew->val = reinterpret_cast<void *>(Fdel);
+        hdNew->val = Fdel;
         hdNew->ver = hd->ver + 1;
         Node* child;
         Node* pvt = hd;
@@ -142,10 +152,8 @@ private:
             }
             d = d + 1;
         }
-        uintptr_t uintPtr = reinterpret_cast<uintptr_t>(prg);
-        uintptr_t uintPtrForHdNew = reinterpret_cast<uintptr_t>(hdNew);
-        hd->val.store(reinterpret_cast<void*>(uintPtr, Fdel));
-        prg->val.store(reinterpret_cast<void*>(uintPtrForHdNew, Fdel));
+        SetDel(hd->val);
+        SetDel(prg->val);
         head = hdNew;
     }
 
@@ -170,7 +178,7 @@ public:
     }
     // TODO: Not Implement yet!
     ~PriorityQueue();
-    void insert(int key, void* val) {
+    void insert(int key, TVal val) {
         Stack* s = new Stack();
         Node* node = new Node(key, val);
         keyToCoord(key, node->k );
@@ -255,8 +263,8 @@ public:
                         Node* prg = reinterpret_cast<Node*>(ClearMark(uintPtr, Fadp|Fprg));
                         if (prg->key <= sOld->node[D-1].load(memory_order_seq_cst)->key) {
                             // TODO: check correctness(what about Fdel flag);
-                            uintPtr = reinterpret_cast<uintptr_t>(prg->val.load(memory_order_seq_cst));
-                            s->head = reinterpret_cast<Node*>(ClearMark(uintPtr, Fdel));
+                            ClearDel(prg->val);
+                            s->head = prg;
                             for (int i = 0; i < D; i++) {
                                 s->node[i].store(s->head);
                             }
@@ -271,11 +279,11 @@ public:
                             break;
                         }
                     } else {
-                        uintptr_t uintPtr = reinterpret_cast<uintptr_t>(s->head->val.load(memory_order_seq_cst));
-                        Node* prg = reinterpret_cast<Node *>(ClearMark(uintPtr, Fdel));
+                        uintptr_t uintPtr = reinterpret_cast<uintptr_t>(s->head);
+                        Node* prg = reinterpret_cast<Node*>(ClearMark(uintPtr, Fadp|Fprg));
                         if (prg->key <= node->key) {
-                            uintPtr = reinterpret_cast<uintptr_t>(prg->val.load(memory_order_seq_cst));
-                            s->head = reinterpret_cast<Node *>(ClearMark(uintPtr, Fdel));
+                            ClearDel(prg->val);
+                            s->head = prg;
                             for (int i = 0; i < D; i++) {
                                 s->node[i].store(s->head);
                             }
@@ -288,7 +296,7 @@ public:
                             }
                         }
                     }
-                } while(stack.compare_exchange_strong(sNew, s) || IsMarked(reinterpret_cast<uintptr_t>(node->val.load(memory_order_seq_cst)), Fdel));
+                } while(stack.compare_exchange_strong(sNew, s) || IsDel(node->val));
                 break;
              }
         }
@@ -328,16 +336,15 @@ public:
                 d = d - 1;
                 continue;
             }
-            void* val = child->val.load(memory_order_seq_cst);
-            uintPtr = reinterpret_cast<uintptr_t>(val);
-            if (IsMarked(reinterpret_cast<uintptr_t>(val), Fdel)) {
-                if (!ClearMark(uintPtr, Fdel)) {
+            auto val = child->val.load();
+            if (IsDel(val)) {
+                if (!(val & ~Fdel)) {
                     for (int i = d; i < D; i++) {
                         s->node[i].store(child);
                     }
                     d = D - 1;
                 } else {
-                    s->head = reinterpret_cast<Node*>(ClearMark(uintPtr, Fdel));
+                    s->head = reinterpret_cast<Node*>(CreateDeletedVal(0));
                     for (int i = 0; i < D; i++) {
                         s->node[i].store(s->head);
                     }
@@ -345,7 +352,7 @@ public:
                 }
             } else {
                 // uintptr_t uintPtr = reinterpret_cast<uintptr_t>(val);
-                if (child->val.compare_exchange_strong(val, reinterpret_cast<void *>(SetMark(uintPtr, Fdel)))) {
+                if (child->val.compare_exchange_strong(val, val | Fdel)) {
                     for (int i = d; i < D; i++) {
                         s->node[i].store(child);
                     }
@@ -397,7 +404,7 @@ private:
         for (int i = 0; i < D-1; i++) {
             cout << node->k[i] << ", ";
         }
-        cout << node->k[D-1] << "]: " << endl;
+        cout << node->k[D-1] << "]: " << node->val.load() << endl;
 
         for (int i = D-1; i >= dim; i--) {
             string childPrefix = prefix;
@@ -415,39 +422,39 @@ int main() {
     // auto pq = new PriorityQueue<8, 4294967295, 100, long, long>();
     auto pq = new PriorityQueue<3, 64, 100, long, long>();
 
-    pq->insert(1, nullptr);
-    pq->insert(2, nullptr);
-    pq->insert(3, nullptr);
-    pq->insert(4, nullptr);
-    pq->insert(6, nullptr);
-    pq->insert(10, nullptr);
-    pq->insert(12, nullptr);
-    pq->insert(13, nullptr);
-    pq->insert(18, nullptr);
-    pq->insert(19, nullptr);
-    pq->insert(22, nullptr);
-    pq->insert(23, nullptr);
-    pq->insert(25, nullptr);
-    pq->insert(33, nullptr);
-    pq->insert(34, nullptr);
-    pq->insert(36, nullptr);
-    pq->insert(40, nullptr);
-    pq->insert(48, nullptr);
-    pq->insert(49, nullptr);
-    pq->insert(50, nullptr);
-    pq->insert(51, nullptr);
-    pq->insert(52, nullptr);
-    pq->insert(56, nullptr);
-    pq->insert(60, nullptr);
-    pq->insert(61, nullptr);
-    pq->insert(62, nullptr);
-    pq->insert(63, nullptr);
+    pq->insert(1, 1);
+    pq->insert(2, 2);
+    pq->insert(3, 3);
+    pq->insert(4, 4);
+    pq->insert(6, 6);
+    pq->insert(10, 10);
+    pq->insert(12, 12);
+    pq->insert(13, 13);
+    pq->insert(18, 18);
+    pq->insert(19, 19);
+    pq->insert(22, 22);
+    pq->insert(23, 23);
+    pq->insert(25, 25);
+    pq->insert(33, 33);
+    pq->insert(34, 34);
+    pq->insert(36, 36);
+    pq->insert(40, 40);
+    pq->insert(48, 48);
+    pq->insert(49, 49);
+    pq->insert(50, 50);
+    pq->insert(51, 51);
+    pq->insert(52, 52);
+    pq->insert(56, 56);
+    pq->insert(60, 60);
+    pq->insert(61, 61);
+    pq->insert(62, 62);
+    pq->insert(63, 63);
 
     cout << "After the insertion -----------------------------" << endl;
     pq->printHelper();
     cout << "Delete the min value ----------------------------" << endl;
     for (int i = 0; i < 8; i++) {
-        int minVal = pq->deleteMin();
+        auto minVal = pq->deleteMin();
         cout << minVal << endl;
     }
     cout << "After the deletion1 -----------------------------" << endl;
@@ -455,13 +462,13 @@ int main() {
     pq->printStack();
     cout << "After the deletion2 -----------------------------" << endl;
     // pq->printHelper();
-    int minVal = pq->deleteMin();
+    auto minVal = pq->deleteMin();
     cout << minVal << endl;
     pq->printStack();
     cout << "Insert some smaller nodes ----------------------" << endl;
-    pq->insert(1, nullptr);
-    pq->insert(2, nullptr);
-    pq->insert(3, nullptr);
+    pq->insert(1, 1);
+    pq->insert(2, 2);
+    pq->insert(3, 3);
     // pq->insert(4, nullptr);
     // pq->insert(32, nullptr);
     cout << "After the insertion ------------------------------" << endl;
