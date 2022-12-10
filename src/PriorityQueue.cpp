@@ -16,7 +16,7 @@ int Fdel = 0x1, Fadp = 0x1, Fprg = 0x2;
 // Creating and retrieving Val
 #define CreateDeletedVal(v) (v << 1)
 #define CreateVal(v) (v << 1)
-#define GetVal(v) (v >> 1)
+#define GetVal(val) (val.load() >> 1)
 // Val flags
 #define SetDel(val) ({val |= 1; val.load();})
 #define ClearDel(val) ({val &= ~1; val.load();})
@@ -37,7 +37,7 @@ private:
         AdoptDesc* adesc;
         Node(): Node(0, 0) {}
         Node(int _key): Node(_key, 0) {}
-        Node(int _key, TVal _val): key(_key), val(_val), ver(0), adesc(nullptr) {
+        Node(int _key, TVal _val): key(_key), val(_val << 1), ver(0), adesc(nullptr) {
             child = new atomic<Node*>[D];
             for (int i = 0; i < D; i++) {
                 child[i].store(nullptr);
@@ -181,7 +181,7 @@ public:
     void insert(int key, TVal val) {
         Stack* s = new Stack();
         Node* node = new Node(key, val);
-        keyToCoord(key, node->k );
+        keyToCoord(key, node->k);
         while (true) {
             Node* pred = nullptr, *curr = head;
             int dp = 0, dc = 0;
@@ -344,7 +344,7 @@ public:
                     }
                     d = D - 1;
                 } else {
-                    s->head = reinterpret_cast<Node*>(CreateDeletedVal(0));
+                    s->head = reinterpret_cast<Node*>(ClearMark(uintPtr, Fdel));
                     for (int i = 0; i < D; i++) {
                         s->node[i].store(s->head);
                     }
@@ -404,7 +404,7 @@ private:
         for (int i = 0; i < D-1; i++) {
             cout << node->k[i] << ", ";
         }
-        cout << node->k[D-1] << "]: " << node->val.load() << endl;
+        cout << node->k[D-1] << "]: " << GetVal(node->val) << "(" << IsDel(node->val) << ")" << endl;
 
         for (int i = D-1; i >= dim; i--) {
             string childPrefix = prefix;
