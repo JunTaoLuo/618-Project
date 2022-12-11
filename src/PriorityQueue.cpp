@@ -86,7 +86,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::finishInserting(Node* n, int dp
 }
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(int key, TVal val) {
+void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
         auto id = ids[key].fetch_add(1);
         auto newKey = (key << IDBits) | id;
 
@@ -280,7 +280,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::purge(Node* hd, Node* prg) {
 }
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-tuple<int, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() {
+tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() {
     Node* min = nullptr;
     Stack* sOld = stack, *s = new Stack();
     *s = *sOld;
@@ -337,7 +337,7 @@ tuple<int, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() {
     }
     // return min->key;
     // cout << "min address is " << min << endl;
-    return min == nullptr? make_tuple<int, TVal, bool>(0, 0, false): make_tuple((min->key >> IDBits), GetVal(min->val), true);
+    return min == nullptr? make_tuple<TKey, TVal, bool>(0, 0, false): make_tuple((min->key >> IDBits), GetVal(min->val), true);
 }
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
