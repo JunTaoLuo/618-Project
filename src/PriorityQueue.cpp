@@ -87,17 +87,16 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::finishInserting(Node* n, int dp
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
 void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(int key, TVal val) {
+        auto id = ids[key].fetch_add(1);
+        auto newKey = (key << IDBits) | id;
+
         if (IDBits > 0 && key > PriorityLimit) {
             cout << "Warning: Priority limit exceeded: " << key << " > " << PriorityLimit << endl;
         }
-
-        auto id = ids[key].fetch_add(1);
-
         if (IDBits > 0 && id > IDLimit) {
             cout << "Warning: ID limit exceeded: " << id << " > " << IDLimit << endl;
         }
 
-        auto newKey = (key << IDBits) | id;
 
         Stack* s = new Stack();
         Node* node = new Node(newKey, val);
@@ -338,7 +337,7 @@ tuple<int, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() {
     }
     // return min->key;
     // cout << "min address is " << min << endl;
-    return min == nullptr? make_tuple<int, TVal, bool>(0, 0, true): make_tuple((min->key >> IDBits), GetVal(min->val), true);
+    return min == nullptr? make_tuple<int, TVal, bool>(0, 0, false): make_tuple((min->key >> IDBits), GetVal(min->val), true);
 }
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>

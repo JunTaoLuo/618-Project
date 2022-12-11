@@ -16,7 +16,7 @@ int main() {
     // DeleteMin on empty queue
     auto minVal = pq->deleteMin();
     cout << "deleteMin when empty -----------------------------" << endl;
-    cout << get<0>(minVal) << ": " << get<1>(minVal) << "(" << get<2>(minVal) << ")" << endl;
+    cout << get<0>(minVal) << ": " << get<1>(minVal) << "(is valid: " << get<2>(minVal) << ")" << endl;
 
     pq->insert(1, 1);
     pq->insert(2, 2);
@@ -51,7 +51,7 @@ int main() {
     cout << "Delete the min value ----------------------------" << endl;
     for (int i = 0; i < 8; i++) {
         auto minVal = pq->deleteMin();
-        cout << get<0>(minVal) << ": " << get<1>(minVal) << "(" << get<2>(minVal) << ")" << endl;
+        cout << get<0>(minVal) << ": " << get<1>(minVal) << "(is valid: " << get<2>(minVal) << ")" << endl;
     }
     cout << "After the deletion1 -----------------------------" << endl;
     pq->printHelper();
