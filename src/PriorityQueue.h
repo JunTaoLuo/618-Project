@@ -6,7 +6,7 @@
 
 using namespace std;
 
-template <int D, long N, int R, typename TKey, typename TVal>
+template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
 class PriorityQueue {
 private:
     struct AdoptDesc;
@@ -54,20 +54,30 @@ private:
     void purge(Node* hd, Node* prg);
     void printHelper(Node* node, int dim, string prefix);
 
-public:
-    int basis;
+    // Private constants
+    const int Basis;
+    const int IDLimit;
+    const long PriorityLimit;
+
+    // Private fields
     Node* head;
     atomic<Stack*> stack;
     atomic<int> markedNode;
     atomic<bool> notPurging;
+    vector<atomic<unsigned short>> ids;
+
+public:
+    // Constructor, destructor
     PriorityQueue();
-    // TODO: Not Implement yet!
     ~PriorityQueue();
+
+    // Main API
     void insert(int key, TVal val);
+    tuple<int, TVal, bool> deleteMin();
+
+    // Debugging
     void printHelper();
     void printStack();
-    // TODO: Change the return type
-    tuple<int, TVal, bool> deleteMin();
 };
 
 #endif

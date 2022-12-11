@@ -26,9 +26,13 @@ static int Fdel = 0x1, Fadp = 0x1, Fprg = 0x2;
 #define ClearDel(val) ({val &= ~1; val.load();})
 #define IsDel(val) (val & 1)
 
-template <int D, long N, int R, typename TKey, typename TVal>
-PriorityQueue<D, N, R, TKey, TVal>::PriorityQueue() {
-    basis = ceil(pow(N, 1.0/D));
+template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
+PriorityQueue<D, N, R, IDBits, TKey, TVal>::PriorityQueue(): 
+    Basis(ceil(pow(N, 1.0/D))), 
+    IDLimit((1 << IDBits) - 1), 
+    PriorityLimit((1L << (32-IDBits)) - 1),
+    ids(PriorityLimit+1)
+{
     this->head = new Node(0);
     Stack* sNew = new Stack();
     // TODO: filled with the dummy head?
@@ -41,21 +45,21 @@ PriorityQueue<D, N, R, TKey, TVal>::PriorityQueue() {
     notPurging.store(true);
 }
 
-template <int D, long N, int R, typename TKey, typename TVal>
-PriorityQueue<D, N, R, TKey, TVal>::~PriorityQueue() { }
+template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
+PriorityQueue<D, N, R, IDBits, TKey, TVal>::~PriorityQueue() { }
 
 // Helper function to map priority to key vector
-template <int D, long N, int R, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, TKey, TVal>::keyToCoord(int key, int* k) {
+template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, TKey, TVal>::keyToCoord(int key, int* k) {
     int quotient = key;
     for (int i = D-1; quotient && i >= 0 ; i--) {
-        k[i] = quotient % basis;
-        quotient = quotient / basis;
+        k[i] = quotient % Basis;
+        quotient = quotient / Basis;
     }
 }
 
-template <int D, long N, int R, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, TKey, TVal>::finishInserting(Node* n, int dp, int dc) {
+template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, TKey, TVal>::finishInserting(Node* n, int dp, int dc) {
     if (!n) {
         return;
     }
@@ -81,11 +85,23 @@ void PriorityQueue<D, N, R, TKey, TVal>::finishInserting(Node* n, int dp, int dc
     n->adesc = nullptr;
 }
 
-template <int D, long N, int R, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, TKey, TVal>::insert(int key, TVal val) {
+template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(int key, TVal val) {
+        if (IDBits > 0 && key > PriorityLimit) {
+            cout << "Warning: Priority limit exceeded: " << key << " > " << PriorityLimit << endl;
+        }
+
+        auto id = ids[key].fetch_add(1);
+
+        if (IDBits > 0 && id > IDLimit) {
+            cout << "Warning: ID limit exceeded: " << id << " > " << IDLimit << endl;
+        }
+
+        auto newKey = (key << IDBits) | id;
+
         Stack* s = new Stack();
-        Node* node = new Node(key, val);
-        keyToCoord(key, node->k);
+        Node* node = new Node(newKey, val);
+        keyToCoord(newKey, node->k);
         while (true) {
             Node* pred = nullptr, *curr = head;
             int dp = 0, dc = 0;
@@ -206,8 +222,8 @@ void PriorityQueue<D, N, R, TKey, TVal>::insert(int key, TVal val) {
         }
     }
 
-template <int D, long N, int R, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, TKey, TVal>::purge(Node* hd, Node* prg) {
+template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, TKey, TVal>::purge(Node* hd, Node* prg) {
     if (hd != head) {
         return;
     }
@@ -264,8 +280,8 @@ void PriorityQueue<D, N, R, TKey, TVal>::purge(Node* hd, Node* prg) {
     head = hdNew;
 }
 
-template <int D, long N, int R, typename TKey, typename TVal>
-tuple<int, TVal, bool> PriorityQueue<D, N, R, TKey, TVal>::deleteMin() {
+template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
+tuple<int, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() {
     Node* min = nullptr;
     Stack* sOld = stack, *s = new Stack();
     *s = *sOld;
@@ -322,11 +338,11 @@ tuple<int, TVal, bool> PriorityQueue<D, N, R, TKey, TVal>::deleteMin() {
     }
     // return min->key;
     // cout << "min address is " << min << endl;
-    return min == nullptr? make_tuple<int, TVal, bool>(0, 0, true): make_tuple(min->key, GetVal(min->val), true);
+    return min == nullptr? make_tuple<int, TVal, bool>(0, 0, true): make_tuple((min->key >> IDBits), GetVal(min->val), true);
 }
 
-template <int D, long N, int R, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, TKey, TVal>::printHelper(Node* node, int dim, string prefix) {
+template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printHelper(Node* node, int dim, string prefix) {
     if (node == nullptr) {
         return;
     }
@@ -366,13 +382,13 @@ void PriorityQueue<D, N, R, TKey, TVal>::printHelper(Node* node, int dim, string
     }
 }
 
-template <int D, long N, int R, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, TKey, TVal>::printHelper() {
+template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printHelper() {
     printHelper(this->head, 0, "│");
 }
 
-template <int D, long N, int R, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, TKey, TVal>::printStack() {
+template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printStack() {
     cout << "Print the deletion stack" << endl;
     Stack* curStack = this->stack.load();
     cout << "The head of the stack is: " << curStack->head->key << endl;

@@ -10,8 +10,8 @@ using namespace std;
 
 int main() {
 
-    // auto pq = new PriorityQueue<8, 4294967295, 100, long, long>();
-    auto pq = new PriorityQueue<3, 64, 100, long, long>();
+    auto pq = new PriorityQueue<8, 4294967295, 100, 13, long, long>();
+    // auto pq = new PriorityQueue<3, 64, 100, 0, long, long>();
 
     // DeleteMin on empty queue
     auto minVal = pq->deleteMin();
