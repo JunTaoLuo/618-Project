@@ -12,14 +12,14 @@ private:
     struct AdoptDesc;
     struct Node {
         int ver;
-        int key;
+        TKey key;
         int k[D] = {0};
         atomic<TVal> val;
         atomic<Node*>* child;
         AdoptDesc* adesc;
         Node(): Node(0, 0) {}
-        Node(int _key): Node(_key, 0) {}
-        Node(int _key, TVal _val): key(_key), val(_val << 1), ver(0), adesc(nullptr) {
+        Node(TKey _key): Node(_key, 0) {}
+        Node(TKey _key, TVal _val): key(_key), val(_val << 1), ver(0), adesc(nullptr) {
             child = new atomic<Node*>[D];
             for (int i = 0; i < D; i++) {
                 child[i].store(nullptr);
@@ -72,8 +72,8 @@ public:
     ~PriorityQueue();
 
     // Main API
-    void insert(int key, TVal val);
-    tuple<int, TVal, bool> deleteMin();
+    void insert(TKey key, TVal val);
+    tuple<TKey, TVal, bool> deleteMin();
 
     // Debugging
     void printHelper();
