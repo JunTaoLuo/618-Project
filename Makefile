@@ -1,6 +1,6 @@
 OUTPUTDIR := bin/
 
-CFLAGS := -std=c++14 -fvisibility=hidden -lpthread
+CFLAGS := -std=c++14 -fvisibility=hidden -lpthread -Isrc/
 
 ifeq (,$(CONFIGURATION))
 	CONFIGURATION := release
@@ -18,10 +18,13 @@ HEADERS := src/*.h
 .SUFFIXES:
 .PHONY: all clean
 
-all: dijk-$(CONFIGURATION) pardijk-$(CONFIGURATION) PriorityQueue
+all: dijk-$(CONFIGURATION) pardijk-$(CONFIGURATION) PriorityQueueTests
 
-PriorityQueue: $(HEADERS) src/PriorityQueue.cpp
-	$(CXX) -o $@ $(CFLAGS) src/PriorityQueue.cpp
+PriorityQueue.o: $(HEADERS) src/PriorityQueue.cpp
+	$(CXX) -c -o $@ $(CFLAGS) src/PriorityQueue.cpp
+
+PriorityQueueTests: $(HEADERS) src/PriorityQueueTests.cpp PriorityQueue.o
+	$(CXX) -o $@ $(CFLAGS) src/PriorityQueueTests.cpp PriorityQueue.o 
 
 pardijk-$(CONFIGURATION): $(HEADERS) src/pardijk.cpp
 	$(CXX) -o $@ $(CFLAGS) src/pardijk.cpp
@@ -31,9 +34,6 @@ dijk-$(CONFIGURATION): $(HEADERS) src/dijk.cpp
 
 clean:
 	rm -rf ./pardijk-$(CONFIGURATION)* ./dijk-$(CONFIGURATION)*
-
-FILES = src/*.cpp \
-		src/*.h
 
 check:	default
 	./checker.py
