@@ -33,6 +33,7 @@ PriorityQueue<D, N, R, IDBits, TKey, TVal>::PriorityQueue():
     PriorityLimit((1L << (32-IDBits)) - 1),
     ids(PriorityLimit+1)
 {
+    ids[0].fetch_add(1);
     this->head = new Node(0);
     Stack* sNew = new Stack();
     // TODO: filled with the dummy head?

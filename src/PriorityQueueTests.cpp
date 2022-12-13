@@ -18,6 +18,14 @@ int main() {
     cout << "deleteMin when empty -----------------------------" << endl;
     cout << get<0>(minVal) << ": " << get<1>(minVal) << "(is valid: " << get<2>(minVal) << ")" << endl;
 
+    pq->insert(0, 0);
+    cout << "After the insertion (0, 0) -----------------------------" << endl;
+    pq->printHelper();
+
+    auto minZero = pq->deleteMin();
+    cout << "DeleteMin -----------------------------" << endl;
+    cout << get<0>(minZero) << ": " << get<1>(minZero) << "(is valid: " << get<2>(minZero) << ")" << endl;
+
     pq->insert(1, 1);
     pq->insert(2, 2);
     pq->insert(3, 3);

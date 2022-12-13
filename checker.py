@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from argparse import ArgumentParser
 import sys
 import os
 import re
@@ -8,8 +9,11 @@ script_dir = os.path.dirname(__file__)
 graph_dir = os.path.join(script_dir, "graphs")
 runtime_ref_path = os.path.join(graph_dir, "runtime-ref.txt")
 
-# Usage: ./checker.py
-prog = 'pardijk-release'
+# Usage: ./checker.py prog
+parser = ArgumentParser()
+parser.add_argument("prog", type=str, nargs="?", default="pardijk-release")
+args = parser.parse_args()
+prog = args.prog
 if os.environ["HOME"].startswith("/afs/andrew.cmu.edu"):
     workers = [4, 8]
 else:

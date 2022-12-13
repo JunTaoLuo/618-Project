@@ -69,12 +69,8 @@ inline bool loadDistancesFromFile(std::string fileName,
   assert((bool)f && "Cannot open input file");
 
   std::string line;
-  std::getline(f, line);
-  std::stringstream sstream(line);
-  std::string str;
-
-  while (std::getline(sstream, str, ' ')) {
-    distances.push_back((uint)atol(str.c_str()));
+  while (std::getline(f, line)) {
+    distances.push_back((uint)atol(line.c_str()));
   }
   return true;
 }
@@ -84,11 +80,10 @@ inline void saveDistancesToFile(std::string fileName,
   std::ofstream f(fileName);
   assert((bool)f && "Cannot open output file");
 
-  for (size_t i = 0; i < distances.size()-1; i++)
+  for (size_t i = 0; i < distances.size(); i++)
   {
-    f << distances[i] << " ";
+    f << distances[i] << std::endl;
   }
-  f << distances[distances.size()-1] << std::endl;
 
   assert((bool)f && "Failed to write to output file");
 }
