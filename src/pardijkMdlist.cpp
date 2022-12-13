@@ -123,6 +123,8 @@ void sssp(const std::vector<std::vector<uint>> &edges,
     sssp_worker(graph);
   }
 
+  graph.pq->printHelper();
+
   distances.swap(graph.distances);
 }
 
