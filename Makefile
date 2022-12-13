@@ -18,13 +18,13 @@ HEADERS := src/*.h
 .SUFFIXES:
 .PHONY: all clean
 
-all: dijk-$(CONFIGURATION) pardijk-$(CONFIGURATION) PriorityQueueTests
+all: dijk-$(CONFIGURATION) pardijk-$(CONFIGURATION) PriorityQueueTests pardijkMdlist
 
-PriorityQueue.o: $(HEADERS) src/PriorityQueue.cpp
-	$(CXX) -c -o $@ $(CFLAGS) src/PriorityQueue.cpp
+PriorityQueueTests: $(HEADERS) src/PriorityQueueTests.cpp
+	$(CXX) -o $@ $(CFLAGS) src/PriorityQueueTests.cpp
 
-PriorityQueueTests: $(HEADERS) src/PriorityQueueTests.cpp PriorityQueue.o
-	$(CXX) -o $@ $(CFLAGS) src/PriorityQueueTests.cpp PriorityQueue.o 
+pardijkMdlist: $(HEADERS) src/pardijkMdlist.cpp
+	$(CXX) -o $@ $(CFLAGS) src/pardijkMdlist.cpp
 
 pardijk-$(CONFIGURATION): $(HEADERS) src/pardijk.cpp
 	$(CXX) -o $@ $(CFLAGS) src/pardijk.cpp
@@ -33,7 +33,7 @@ dijk-$(CONFIGURATION): $(HEADERS) src/dijk.cpp
 	$(CXX) -o $@ $(CFLAGS) src/dijk.cpp
 
 clean:
-	rm -rf ./pardijk-$(CONFIGURATION)* ./dijk-$(CONFIGURATION)*
+	rm -rf ./pardijk-$(CONFIGURATION)* ./dijk-$(CONFIGURATION)* PriorityQueue.o pardijkMdlist PriorityQueueTests
 
 check:	default
 	./checker.py
