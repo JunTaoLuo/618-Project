@@ -124,6 +124,7 @@ void sssp(const std::vector<std::vector<uint>> &edges,
   }
 
   graph.pq->printHelper();
+  graph.pq->printStack();
 
   distances.swap(graph.distances);
 }

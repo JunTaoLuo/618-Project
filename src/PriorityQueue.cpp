@@ -391,11 +391,11 @@ template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
 void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printStack() {
     cout << "Print the deletion stack" << endl;
     Stack* curStack = this->stack.load();
-    cout << "The head of the stack is: " << curStack->head->key << endl;
+    cout << "The head of the stack is: " << (curStack->head->key >> IDBits) << "-" << (curStack->head->key & ((1<<IDBits)-1)) << endl;
     cout << "The nodes of the stack are: " << endl;
     for (int i = 0; i < D; i++) {
         Node* curNode = curStack->node[i].load();
-        cout << curNode->key << endl;
+        cout << (curNode->key >> IDBits) << "-" << (curNode->key & ((1<<IDBits)-1)) << endl;
     }
 }
 
