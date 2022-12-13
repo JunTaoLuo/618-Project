@@ -20,10 +20,10 @@ HEADERS := src/*.h
 
 all: dijk-$(CONFIGURATION) pardijk-$(CONFIGURATION) PriorityQueueTests pardijkMdlist
 
-PriorityQueueTests: $(HEADERS) src/PriorityQueueTests.cpp
+PriorityQueueTests: $(HEADERS) src/PriorityQueueTests.cpp src/PriorityQueue.cpp
 	$(CXX) -o $@ $(CFLAGS) src/PriorityQueueTests.cpp
 
-pardijkMdlist: $(HEADERS) src/pardijkMdlist.cpp
+pardijkMdlist: $(HEADERS) src/pardijkMdlist.cpp src/PriorityQueue.cpp
 	$(CXX) -o $@ $(CFLAGS) src/pardijkMdlist.cpp
 
 pardijk-$(CONFIGURATION): $(HEADERS) src/pardijk.cpp
