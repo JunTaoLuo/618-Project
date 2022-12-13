@@ -27,9 +27,9 @@ static int Fdel = 0x1, Fadp = 0x1, Fprg = 0x2;
 #define IsDel(val) (val & 1)
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-PriorityQueue<D, N, R, IDBits, TKey, TVal>::PriorityQueue(): 
-    Basis(ceil(pow(N, 1.0/D))), 
-    IDLimit((1 << IDBits) - 1), 
+PriorityQueue<D, N, R, IDBits, TKey, TVal>::PriorityQueue():
+    Basis(ceil(pow(N, 1.0/D))),
+    IDLimit((1 << IDBits) - 1),
     PriorityLimit((1L << (32-IDBits)) - 1),
     ids(PriorityLimit+1)
 {
@@ -121,7 +121,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
                     dc++;
                 }
             }
-            // testing: 
+            // testing:
             // cout << "testing stack -------------------------------------" << key << " " << s->head->key << " " << dp << " " << dc << endl;
             // for (int i = 0; i < D; i++) {
             //     Node* curNode = s->node[i].load();
@@ -290,7 +290,7 @@ tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() 
     //     s->node[i].store(sOld->node[i]);
     // }
     int d = D - 1;
-    // Modified: change the codition from d > 0 --> d >= 0 
+    // Modified: change the codition from d > 0 --> d >= 0
     while (d >= 0) {
         Node* last = s->node[d].load(memory_order_seq_cst);
         finishInserting(last, d, d);
@@ -367,11 +367,11 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printHelper(Node* node, int dim
         newPrefix += "├";
     }
 
-    cout << newPrefix << node->key << " (" << std::bitset<2>(flags) << ") [";
+    cout << newPrefix << (node->key >> IDBits) << "-" << (node->key & ((1<<IDBits)-1)) << " (" << std::bitset<2>(flags) << ") [";
     for (int i = 0; i < D-1; i++) {
         cout << node->k[i] << ", ";
     }
-    cout << node->k[D-1] << "]: " << GetVal(node->val) << "(" << IsDel(node->val) << ")" << endl;
+    cout << node->k[D-1] << "]: " << GetVal(node->val) << "(deleted: " << IsDel(node->val) << ")" << endl;
 
     for (int i = D-1; i >= dim; i--) {
         string childPrefix = prefix;
