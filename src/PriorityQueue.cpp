@@ -42,6 +42,7 @@ PriorityQueue<D, N, R, IDBits, TKey, TVal>::PriorityQueue():
 {
     ids[0].fetch_add(1);
     head = new Node(0);
+    SetDel(head->val);
     Stack* sNew = new Stack();
     sNew->head = head;
     for (int i = 0; i < D; i++) {
