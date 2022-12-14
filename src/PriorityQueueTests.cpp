@@ -20,7 +20,7 @@ int main() {
 
     pq->insert(0, 0);
     cout << "After the insertion (0, 0) -----------------------------" << endl;
-    pq->printHelper();
+    pq->printPQ();
 
     auto minZero = pq->deleteMin();
     cout << "DeleteMin -----------------------------" << endl;
@@ -55,14 +55,14 @@ int main() {
     pq->insert(63, 63);
 
     cout << "After the insertion -----------------------------" << endl;
-    pq->printHelper();
+    pq->printPQ();
     cout << "Delete the min value ----------------------------" << endl;
     for (int i = 0; i < 8; i++) {
         auto minVal = pq->deleteMin();
         cout << get<0>(minVal) << ": " << get<1>(minVal) << "(is valid: " << get<2>(minVal) << ")" << endl;
     }
     cout << "After the deletion1 -----------------------------" << endl;
-    pq->printHelper();
+    pq->printPQ();
     pq->printStack();
     cout << "After the deletion2 -----------------------------" << endl;
     // pq->printHelper();
@@ -76,7 +76,7 @@ int main() {
     // pq->insert(4, nullptr);
     // pq->insert(32, nullptr);
     cout << "After the insertion ------------------------------" << endl;
-    pq->printHelper();
+    pq->printPQ();
     pq->printStack();
     return 0;
 }

@@ -3,6 +3,9 @@
 
 #include <atomic>
 #include <tuple>
+#include <string>
+#include <iostream>
+#include <sstream>
 
 using namespace std;
 
@@ -24,6 +27,12 @@ private:
             for (int i = 0; i < D; i++) {
                 child[i].store(nullptr);
             }
+        }
+
+        string toString() {
+            stringstream buffer;
+            buffer << "Key: " << (key >> IDBits) << "-" << (key & ((1<<IDBits)-1)) << " (" << std::bitset<2>(key & 3) << ")"  << " Value: " << (val >> 1) << " (deleted: " << (val & 1) << ")" ;
+            return buffer.str();
         }
     };
     struct AdoptDesc {
@@ -51,8 +60,9 @@ private:
     // Helper function to map priority to key vector
     void keyToCoord(int key, int* k);
     void finishInserting(Node* n, int dp, int dc);
-    void purge(Node* hd, Node* prg);
-    void printHelper(Node* node, int dim, string prefix);
+    // void purge(Node* hd, Node* prg);
+    void printPQ(Node* node, int dim, string prefix);
+    void printStack(Stack* stack);
 
     // Private constants
     const int Basis;
@@ -62,8 +72,8 @@ private:
     // Private fields
     Node* head;
     atomic<Stack*> stack;
-    atomic<int> markedNode;
-    atomic<bool> notPurging;
+    // atomic<int> markedNode;
+    // atomic<bool> notPurging;
     vector<atomic<unsigned short>> ids;
 
 public:
@@ -76,7 +86,7 @@ public:
     tuple<TKey, TVal, bool> deleteMin();
 
     // Debugging
-    void printHelper();
+    void printPQ();
     void printStack();
 };
 

@@ -48,14 +48,17 @@ struct Graph {
       uint offerDistance = offers[vertex];
       if (offerDistance == 0 || distance < offerDistance) {
         offers[vertex] = distance;
-        // printf("Worker %d inserting new order (%u -> %u)\n", omp_get_thread_num(), vertex, distance);
+        printf("Worker %d inserting new order (%u -> %u)\n", omp_get_thread_num(), vertex, distance);
         pq->insert(distance, vertex);
+        printf("Worker %d inserted new order (%u -> %u)\n", omp_get_thread_num(), vertex, distance);
       }
     }
     omp_unset_lock(&(offerLocks[vertex]));
   }
 
   void resetDone() {
+    int threadIndex = omp_get_thread_num();
+    // printf("Worker %d resetting done\n", threadIndex);
     for (size_t i = 0; i < omp_get_num_threads(); i++)
     {
       done[i] = false;
@@ -75,6 +78,7 @@ void sssp_worker(Graph<D, N, R, IDBits, TKey, TVal> &graph) {
     TVal vertex;
     bool valid;
 
+    printf("Worker %d retrieving offer\n", threadIndex);
     tie(distance, vertex, valid) = graph.pq->deleteMin();
     if (valid) {
       printf("Worker %d retrieved offer (%u -> %u)\n", threadIndex, (uint)vertex, (uint)distance);
@@ -99,8 +103,10 @@ void sssp_worker(Graph<D, N, R, IDBits, TKey, TVal> &graph) {
         int i;
         for (i = 0; i < numThreads && graph.done[i]; i++) { }
         if (i == numThreads) {
+          // printf("Worker %d received concensus\n", threadIndex);
           return;
         }
+        // printf("Worker %d noticed worker %d is not done\n", threadIndex, i);
       }
       printf("Worker %d restarted\n", threadIndex);
     }
@@ -123,7 +129,7 @@ void sssp(const std::vector<std::vector<uint>> &edges,
     sssp_worker(graph);
   }
 
-  graph.pq->printHelper();
+  graph.pq->printPQ();
   graph.pq->printStack();
 
   distances.swap(graph.distances);

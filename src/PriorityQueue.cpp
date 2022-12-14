@@ -1,12 +1,15 @@
 #ifndef PQ_CPP
 #define PQ_CPP
 
+#include <string>
 #include <iostream>
+#include <sstream>
 #include <bitset>
 #include <atomic>
 #include <cmath>
 #include <vector>
 #include <tuple>
+#include <omp.h>
 #include "PriorityQueue.h"
 
 using namespace std;
@@ -16,6 +19,10 @@ static int Fdel = 0x1, Fadp = 0x1, Fprg = 0x2;
 #define SetMark(p, m) ({p |= m; p;})
 #define ClearMark(p, m) ({p &= ~m; p;})
 #define IsMarked(p, m) ({p & m;})
+
+#define ClearFlags(ptr, flags) ((Node*)(((uintptr_t)ptr) & ~(flags)))
+#define SetFlags(ptr, flags) ((Node*)(((uintptr_t)ptr) | (flags)))
+#define HasFlags(ptr, flags) (((uintptr_t)ptr) & (flags))
 
 // Creating and retrieving Val
 #define CreateDeletedVal(v) (v << 1)
@@ -34,16 +41,13 @@ PriorityQueue<D, N, R, IDBits, TKey, TVal>::PriorityQueue():
     ids(PriorityLimit+1)
 {
     ids[0].fetch_add(1);
-    this->head = new Node(0);
+    head = new Node(0);
     Stack* sNew = new Stack();
-    // TODO: filled with the dummy head?
-    sNew->head = this->head;
+    sNew->head = head;
     for (int i = 0; i < D; i++) {
         sNew->node[i].store(head);
     }
     this->stack.store(sNew);
-    markedNode.store(0);
-    notPurging.store(true);
 }
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
@@ -88,197 +92,242 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::finishInserting(Node* n, int dp
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
 void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
-        auto id = ids[key].fetch_add(1);
-        auto newKey = (key << IDBits) | id;
+    // cout << "Inserting " << key << ": " << val << endl;
 
-        if (IDBits > 0 && key > PriorityLimit) {
-            cout << "Warning: Priority limit exceeded: " << key << " > " << PriorityLimit << endl;
-        }
-        if (IDBits > 0 && id > IDLimit) {
-            cout << "Warning: ID limit exceeded: " << id << " > " << IDLimit << endl;
-        }
+    auto id = ids[key].fetch_add(1);
+    auto newKey = (key << IDBits) | id;
+
+    if (IDBits > 0 && key > PriorityLimit) {
+        cout << "Warning: Priority limit exceeded: " << key << " > " << PriorityLimit << endl;
+    }
+    if (IDBits > 0 && id > IDLimit) {
+        cout << "Warning: ID limit exceeded: " << id << " > " << IDLimit << endl;
+    }
+
+    Node* newNode = new Node(newKey, val);
+    keyToCoord(newKey, newNode->k);
 
 
-        Stack* s = new Stack();
-        Node* node = new Node(newKey, val);
-        keyToCoord(newKey, node->k);
-        while (true) {
-            Node* pred = nullptr, *curr = head;
-            int dp = 0, dc = 0;
-            s->head = curr;
-            // locatePred;
-            while (dc < D) {
-                while (curr && node->k[dc] > curr->k[dc]) {
-                    pred = curr;
-                    dp = dc;
-                    finishInserting(curr, dc, dc);
-                    curr = curr->child[dc].load(memory_order_seq_cst);
-                }
-                if (curr == nullptr || node->k[dc] < curr->k[dc]) {
-                    break;
-                } else {
-                    s->node[dc].store(curr);
-                    dc++;
-                }
+    Stack* nodeStack = new Stack();
+    Node* predNode = nullptr;
+    Node* currNode = head;
+    nodeStack->head = currNode;
+    int currDim = 0;
+    int predDim = 0;
+
+    while (true) {
+        // locatePred;
+        while (currDim < D) {
+            while (currNode && newNode->k[currDim] > currNode->k[currDim]) {
+                predNode = currNode;
+                predDim = currDim;
+                currNode = ClearFlags(currNode->child[currDim].load(), Fadp|Fprg);
             }
-            // testing:
-            // cout << "testing stack -------------------------------------" << key << " " << s->head->key << " " << dp << " " << dc << endl;
-            // for (int i = 0; i < D; i++) {
-            //     Node* curNode = s->node[i].load();
-            //     if (curNode) {
-            //         cout << curNode->key << " ";
-            //     }
-            // }
-            // cout << endl;
-            if (dc == D) {
+
+            if (currNode == nullptr || newNode->k[currDim] < currNode->k[currDim]) {
                 break;
+            } else {
+                nodeStack->node[currDim].store(currNode);
+                currDim++;
             }
-            finishInserting(curr, dp, dc);
-            // fillNewNode();
-            node->adesc = nullptr;
-            if (dp < dc) {
-                node->adesc = new AdoptDesc();
-                node->adesc->curr = curr;
-                node->adesc->dp = dp;
-                node->adesc->dc = dc;
-            }
-            for (int i = 0; i < dp; i++) {
-                // TODO: what if child is nullptr
-                Node* child = node->child[i].load(memory_order_seq_cst);
-                // node->child[i].store(reinterpret_cast<Node*>(SetMark(reinterpret_cast<uintptr_t>(child), Fadp)));
-                uintptr_t uintPtr = reinterpret_cast<uintptr_t>(child);
-                node->child[i].store(reinterpret_cast<Node*>(SetMark(uintPtr, Fadp)));
-            }
-            for (int i = dp; i < D; i++) {
-                node->child[i].store(nullptr);
-            }
-            node->child[dc].store(curr);
-            if (pred->child[dp].compare_exchange_strong(curr, node)) {
-                finishInserting(node, dp, dc);
-//                 rewindStack();
-                Stack* sOld = stack.load(memory_order_seq_cst), * sNew;
-                bool first_iteration = true;
-                do {
-                    sNew = stack;
-                    if (s->head->ver == sOld->head->ver) {
-                        if (node->key <= sNew->node[D-1].load(memory_order_seq_cst)->key) {
-                            // MOdified: There is a bug at line 254 if we follow the proof 4 on page 10
-                            // Test case will be displayed on PR
-                            // for (int i = dp + 1; i < D; i++) {
-                            for (int i = dp; i < D; i++) {
-                                s->node[i].store(pred);
-                            }
-                        } else if (first_iteration) {
-                            s->head = sNew->head;
-                            for (int i = 0; i < D; i++) {
-                                s->node[i].store(sNew->node[i].load(memory_order_seq_cst));
-                            }
-                            // *s = *sNew;
-                            first_iteration = false;
-                        } else {
-                            break;
-                        }
-                    } else if (s->head->ver > sOld->head->ver) {
-                        uintptr_t uintPtr = reinterpret_cast<uintptr_t>(sOld->head);
-                        Node* prg = reinterpret_cast<Node*>(ClearMark(uintPtr, Fadp|Fprg));
-                        if (prg->key <= sOld->node[D-1].load(memory_order_seq_cst)->key) {
-                            // TODO: check correctness(what about Fdel flag);
-                            ClearDel(prg->val);
-                            s->head = prg;
-                            for (int i = 0; i < D; i++) {
-                                s->node[i].store(s->head);
-                            }
-                        } else if (first_iteration) {
-                            s->head = sOld->head;
-                            for (int i = 0; i < D; i++) {
-                                s->node[i].store(sOld->node[i].load(memory_order_seq_cst));
-                            }
-                            // *s = *sOld;
-                            first_iteration = false;
-                        } else {
-                            break;
-                        }
-                    } else {
-                        uintptr_t uintPtr = reinterpret_cast<uintptr_t>(s->head);
-                        Node* prg = reinterpret_cast<Node*>(ClearMark(uintPtr, Fadp|Fprg));
-                        if (prg->key <= node->key) {
-                            ClearDel(prg->val);
-                            s->head = prg;
-                            for (int i = 0; i < D; i++) {
-                                s->node[i].store(s->head);
-                            }
-                        } else {
-                            // MOdified: There is a bug if we follow the proof 4 on page 10
-                            // Test case will be displayed on PR
-                            // for (int i = dp + 1; i < D; i++) {
-                            for (int i = dp; i < D; i++) {
-                                s->node[i].store(pred);
-                            }
-                        }
-                    }
-                } while(stack.compare_exchange_strong(sNew, s) || IsDel(node->val));
-                break;
-             }
         }
-    }
+        // end locatePred
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, IDBits, TKey, TVal>::purge(Node* hd, Node* prg) {
-    if (hd != head) {
-        return;
-    }
-    Node* hdNew = new Node(0), *prgCopy = new Node(0);
-    // *prgCopy = *prg;
-    prgCopy->adesc = prg->adesc;
-    copy(begin(prg->k), end(prg->k), begin(prgCopy->k));
-    prgCopy->key = prg->key;
-    prgCopy->ver = prg->ver;
-    prgCopy->val.store(prgCopy->val);
-    for (int i = 0; i < D; i++) {
-        prgCopy->child[i].store(nullptr);
-    }
-    hdNew->val = Fdel;
-    hdNew->ver = hd->ver + 1;
-    Node* child;
-    Node* pvt = hd;
-    for (int d = 0; d < D;) {
-        bool locatePivot = true;
-        // LocatePivot
-        uintptr_t unitPtr;
-        while(prg->k[d] > pvt->k[d]) {
-            finishInserting(pvt, d, d);
-            unitPtr = reinterpret_cast<uintptr_t>(pvt->child[d].load(memory_order_seq_cst));
-            pvt = reinterpret_cast<Node*>(ClearMark(unitPtr, Fadp|Fprg));
+        // cout << "Located Pred" << endl;
+        // cout << "Node stack" << endl;
+        // printStack(nodeStack);
+
+        // testing:
+        // cout << "testing stack -------------------------------------" << key << " " << s->head->key << " " << dp << " " << dc << endl;
+        // for (int i = 0; i < D; i++) {
+        //     Node* curNode = s->node[i].load();
+        //     if (curNode) {
+        //         cout << curNode->key << " ";
+        //     }
+        // }
+        // cout << endl;
+
+        if (currDim == D) {
+            break;
         }
-        do {
-            child = pvt->child[d].load(memory_order_seq_cst);
-            unitPtr = reinterpret_cast<uintptr_t>(child);
-        } while(pvt->child[d].compare_exchange_strong(child, reinterpret_cast<Node*>(SetMark(unitPtr, Fprg))) || IsMarked(unitPtr, Fadp|Fprg));
-        if (IsMarked(unitPtr, Fprg)) {
-            child = reinterpret_cast<Node*>(unitPtr, Fprg);
-        } else {
-            locatePivot = false;
-        }
-        if (!locatePivot) {
-            pvt = hd;
-            d = 0;
+
+        // Finish adoption of previous node
+        AdoptDesc* pendingAdesc = predNode->adesc;
+        if (pendingAdesc && pendingAdesc->dp <= predDim && predDim <= pendingAdesc->dc) {
+            finishInserting(predNode, pendingAdesc->dp, pendingAdesc->dc);
+            currNode = predNode;
+            currDim = predDim;
             continue;
         }
-        if (pvt == hd) {
-            hdNew->child[d].store(child);
-            prgCopy->child[d].store(reinterpret_cast<Node*>(Fdel));
-        } else {
-            prgCopy->child[d].store(child);
-            if (d == 0 || prgCopy->child[d - 1].load(memory_order_seq_cst) == reinterpret_cast<Node*>(Fdel)) {
-                hdNew->child[d].store(prgCopy);
+
+        // Finish adoption of current node
+        pendingAdesc = currNode ? currNode->adesc : nullptr;
+        if (pendingAdesc && predDim != currDim) {
+            finishInserting(currNode, pendingAdesc->dp, pendingAdesc->dc);
+        }
+
+        // Insert new node
+        if (predNode->child[predDim].load() == currNode) {
+            // fillNewNode
+            AdoptDesc* newAdesc = nullptr;
+
+            if (predDim != currDim) {
+                newAdesc = new AdoptDesc();
+                newAdesc->curr = currNode;
+                newAdesc->dp = predDim;
+                newAdesc->dc = currDim;
+            }
+
+            for (int i = 0; i < predDim; i++) {
+                newNode->child[i].store(SetFlags(nullptr, Fadp));
+            }
+            for (int i = predDim; i < D; i++) {
+                newNode->child[i].store(nullptr);
+            }
+
+            newNode->child[currDim].store(currNode);
+            newNode->adesc = newAdesc;
+
+            // end fillNewNode
+
+            if (predNode->child[predDim].compare_exchange_strong(currNode, newNode)) {
+                if (newAdesc) {
+                    finishInserting(newNode, newAdesc->dp, newAdesc->dc);
+                }
+
+                if (IsDel(predNode->val) && !IsDel(newNode->val)) {
+                    stringstream buffer;
+                    buffer << "Worker " << omp_get_thread_num() << ": Rewinding stack" << endl;
+                    cout << buffer.str();
+
+                    // rewindStack
+
+                    Stack* prevStack = nullptr;
+                    Stack* currStack = stack.load();
+                    Stack* newStack = new Stack();
+
+                    do {
+                        // cout << "PredNode: " << predNode->toString() << endl;
+                        // cout << "CurrNode: " << (currNode ? currNode->toString() : "null") << endl;
+                        // cout << "NewNode: " << newNode->toString() << endl;
+                        currStack = stack.load();
+
+                        // cout << "Current stack:" << endl;
+                        // printStack(currStack);
+                        // cout << "Node stack:" << endl;
+                        // printStack(nodeStack);
+
+                        if (currStack->head->ver == nodeStack->head->ver) {
+                            if (newNode->key <= currStack->node[D-1].load()->key) {
+                                newStack->head = nodeStack->head;
+                                for (int i = 0; i < predDim; i++)
+                                {
+                                    newStack->node[i].store(nodeStack->node[i].load());
+                                }
+                                for (int i = predDim; i < D; i++)
+                                {
+                                    newStack->node[i].store(predNode);
+                                }
+                            }
+                            else if (prevStack == nullptr) {
+                                *newStack = *currStack;
+                            }
+                            else {
+                                break;
+                            }
+                        }
+                        else {
+                            cout << "Warning: purge not implemented" << endl;
+                        }
+
+                        prevStack = currStack;
+
+                        // cout << "Candidate stack:" << endl;
+                        // printStack(newStack);
+                    } while (!stack.compare_exchange_strong(currStack, newStack) && !IsDel(newNode->val));
+
+                    // end rewindStack
+
+                    cout << "New stack:" << endl;
+                    printStack(stack.load());
+                }
+
+                break;
             }
         }
-        d = d + 1;
+
+        if (HasFlags(predNode->child[predDim].load(), Fadp | Fprg)) {
+            currNode = head;
+            predNode = nullptr;
+            currDim = 0;
+            predDim = 0;
+            nodeStack->head = currNode;
+        }
+        else {
+            cout << "Warning: there should never be duplicate keys|id" << endl;
+            currNode = predNode;
+            currDim = predDim;
+        }
     }
-    SetDel(hd->val);
-    SetDel(prg->val);
-    head = hdNew;
 }
+
+// template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
+// void PriorityQueue<D, N, R, IDBits, TKey, TVal>::purge(Node* hd, Node* prg) {
+//     if (hd != head) {
+//         return;
+//     }
+//     Node* hdNew = new Node(0), *prgCopy = new Node(0);
+//     // *prgCopy = *prg;
+//     prgCopy->adesc = prg->adesc;
+//     copy(begin(prg->k), end(prg->k), begin(prgCopy->k));
+//     prgCopy->key = prg->key;
+//     prgCopy->ver = prg->ver;
+//     prgCopy->val.store(prgCopy->val);
+//     for (int i = 0; i < D; i++) {
+//         prgCopy->child[i].store(nullptr);
+//     }
+//     hdNew->val = Fdel;
+//     hdNew->ver = hd->ver + 1;
+//     Node* child;
+//     Node* pvt = hd;
+//     for (int d = 0; d < D;) {
+//         bool locatePivot = true;
+//         // LocatePivot
+//         uintptr_t unitPtr;
+//         while(prg->k[d] > pvt->k[d]) {
+//             finishInserting(pvt, d, d);
+//             unitPtr = reinterpret_cast<uintptr_t>(pvt->child[d].load(memory_order_seq_cst));
+//             pvt = reinterpret_cast<Node*>(ClearMark(unitPtr, Fadp|Fprg));
+//         }
+//         do {
+//             child = pvt->child[d].load(memory_order_seq_cst);
+//             unitPtr = reinterpret_cast<uintptr_t>(child);
+//         } while(pvt->child[d].compare_exchange_strong(child, reinterpret_cast<Node*>(SetMark(unitPtr, Fprg))) || IsMarked(unitPtr, Fadp|Fprg));
+//         if (IsMarked(unitPtr, Fprg)) {
+//             child = reinterpret_cast<Node*>(unitPtr, Fprg);
+//         } else {
+//             locatePivot = false;
+//         }
+//         if (!locatePivot) {
+//             pvt = hd;
+//             d = 0;
+//             continue;
+//         }
+//         if (pvt == hd) {
+//             hdNew->child[d].store(child);
+//             prgCopy->child[d].store(reinterpret_cast<Node*>(Fdel));
+//         } else {
+//             prgCopy->child[d].store(child);
+//             if (d == 0 || prgCopy->child[d - 1].load(memory_order_seq_cst) == reinterpret_cast<Node*>(Fdel)) {
+//                 hdNew->child[d].store(prgCopy);
+//             }
+//         }
+//         d = d + 1;
+//     }
+//     SetDel(hd->val);
+//     SetDel(prg->val);
+//     head = hdNew;
+// }
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
 tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() {
@@ -324,14 +373,14 @@ tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() 
                 }
                 min = child;
                 stack.compare_exchange_strong(sOld, s);
-                int ori = markedNode.fetch_add(1);
-                bool expected = true;
-                bool target = false;
-                if (ori > R - 1 && notPurging.compare_exchange_strong(expected, target)) {
-                    purge(s->head, s->node[D- 1].load(memory_order_seq_cst));
-                    markedNode.store(R - ori - 1);
-                    notPurging.compare_exchange_strong(target, expected);
-                }
+                // int ori = markedNode.fetch_add(1);
+                // bool expected = true;
+                // bool target = false;
+                // if (ori > R - 1 && notPurging.compare_exchange_strong(expected, target)) {
+                //     purge(s->head, s->node[D- 1].load(memory_order_seq_cst));
+                //     markedNode.store(R - ori - 1);
+                //     notPurging.compare_exchange_strong(target, expected);
+                // }
             }
             break;
         }
@@ -342,7 +391,7 @@ tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() 
 }
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printHelper(Node* node, int dim, string prefix) {
+void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printPQ(Node* node, int dim, string prefix) {
     if (node == nullptr) {
         return;
     }
@@ -378,25 +427,34 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printHelper(Node* node, int dim
         for (int j = dim; j < i; j++) {
             childPrefix += "│";
         }
-        printHelper(node->child[i], i, childPrefix);
+        printPQ(node->child[i], i, childPrefix);
     }
 }
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printHelper() {
-    printHelper(this->head, 0, "│");
+void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printPQ() {
+    printPQ(this->head, 0, "│");
+}
+
+template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printStack(Stack * stack) {
+    stringstream buffer;
+    buffer << "Worker " << omp_get_thread_num() << " Head: " << (stack->head->key >> IDBits) << "-" << (stack->head->key & ((1<<IDBits)-1)) << endl;
+    buffer << "Nodes: ";
+    for (int i = 0; i < D; i++) {
+        Node* curNode = stack->node[i].load();
+        if (ClearFlags(curNode, Fadp|Fprg) == nullptr) {
+            buffer << "null ";
+        } else {
+            buffer << (curNode->key >> IDBits) << "-" << (curNode->key & ((1<<IDBits)-1)) << " ";
+        }
+    }
+    cout << buffer.str() << endl;
 }
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
 void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printStack() {
-    cout << "Print the deletion stack" << endl;
-    Stack* curStack = this->stack.load();
-    cout << "The head of the stack is: " << (curStack->head->key >> IDBits) << "-" << (curStack->head->key & ((1<<IDBits)-1)) << endl;
-    cout << "The nodes of the stack are: " << endl;
-    for (int i = 0; i < D; i++) {
-        Node* curNode = curStack->node[i].load();
-        cout << (curNode->key >> IDBits) << "-" << (curNode->key & ((1<<IDBits)-1)) << endl;
-    }
+    printStack(stack.load());
 }
 
 #endif
