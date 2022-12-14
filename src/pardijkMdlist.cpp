@@ -4,7 +4,7 @@
 #include <omp.h>
 #include "PriorityQueue.cpp"
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
+template <int D, long N, int R, int IDBits, int IDBuckets, typename TKey, typename TVal>
 struct Graph {
   std::vector<bool> done;
   std::vector<std::vector<uint>> edges;
@@ -12,9 +12,9 @@ struct Graph {
   std::vector<uint> offers;
   std::vector<omp_lock_t> distanceLocks;
   std::vector<omp_lock_t> offerLocks;
-  PriorityQueue<D, N, R, IDBits, TKey, TVal>* pq;
+  PriorityQueue<D, N, R, IDBits, IDBuckets, TKey, TVal>* pq;
 
-  Graph(uint numVertices, const std::vector<std::vector<uint>> &_edges, std::vector<uint> &_distances, PriorityQueue<D, N, R, IDBits, TKey, TVal>* _pq) {
+  Graph(uint numVertices, const std::vector<std::vector<uint>> &_edges, std::vector<uint> &_distances, PriorityQueue<D, N, R, IDBits, IDBuckets, TKey, TVal>* _pq) {
     done = std::vector<bool>(omp_get_num_threads(), false);
     offers = std::vector<uint>(numVertices, 0); // 0 indicates no current offer
     distances = _distances;
@@ -66,8 +66,8 @@ struct Graph {
   }
 };
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void sssp_worker(Graph<D, N, R, IDBits, TKey, TVal> &graph) {
+template <int D, long N, int R, int IDBits, int IDBuckets, typename TKey, typename TVal>
+void sssp_worker(Graph<D, N, R, IDBits, IDBuckets, TKey, TVal> &graph) {
   int threadIndex = omp_get_thread_num();
   int numThreads = omp_get_num_threads();
 
@@ -119,9 +119,9 @@ void sssp(const std::vector<std::vector<uint>> &edges,
           std::vector<uint> &distances) {
   uint numVertices = distances.size();
 
-  auto pq = new PriorityQueue<8, 4294967295, 100, 13, long, long>();
+  auto pq = new PriorityQueue<8, 4294967295, 100, 13, 128, long, long>();
   pq->insert(0, 0);
-  auto graph = Graph<8, 4294967295, 100, 13, long, long>(numVertices, edges, distances, pq);
+  auto graph = Graph<8, 4294967295, 100, 13, 128, long, long>(numVertices, edges, distances, pq);
 
   #pragma omp parallel shared(graph)
   {

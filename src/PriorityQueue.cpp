@@ -16,29 +16,22 @@ using namespace std;
 
 static int Fdel = 0x1, Fadp = 0x1, Fprg = 0x2;
 
-#define SetMark(p, m) ({p |= m; p;})
-#define ClearMark(p, m) ({p &= ~m; p;})
-#define IsMarked(p, m) ({p & m;})
-
+// All flags
 #define ClearFlags(ptr, flags) ((Node*)(((uintptr_t)ptr) & ~(flags)))
 #define SetFlags(ptr, flags) ((Node*)(((uintptr_t)ptr) | (flags)))
 #define HasFlags(ptr, flags) (((uintptr_t)ptr) & (flags))
 
-// Creating and retrieving Val
-#define CreateDeletedVal(v) (v << 1)
-#define CreateVal(v) (v << 1)
-#define GetVal(val) (val.load() >> 1)
-// Val flags
-#define SetDel(val) ({val |= 1; val.load();})
-#define ClearDel(val) ({val &= ~1; val.load();})
-#define IsDel(val) (val & 1)
+// Delete flags
+#define GetVal(val) (val.load() >> Fdel)
+#define SetDel(val) ({val |= Fdel; val.load();})
+#define IsDel(val) (val & Fdel)
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-PriorityQueue<D, N, R, IDBits, TKey, TVal>::PriorityQueue():
+template <int D, long N, int R, int IDBits, int IDBuckets, typename TKey, typename TVal>
+PriorityQueue<D, N, R, IDBits, IDBuckets, TKey, TVal>::PriorityQueue():
     Basis(ceil(pow(N, 1.0/D))),
     IDLimit((1 << IDBits) - 1),
     PriorityLimit((1L << (32-IDBits)) - 1),
-    ids(PriorityLimit+1)
+    ids(IDBuckets)
 {
     ids[0].fetch_add(1);
     head = new Node(0);
@@ -51,12 +44,12 @@ PriorityQueue<D, N, R, IDBits, TKey, TVal>::PriorityQueue():
     stack.store(sNew);
 }
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-PriorityQueue<D, N, R, IDBits, TKey, TVal>::~PriorityQueue() { }
+template <int D, long N, int R, int IDBits, int IDBuckets, typename TKey, typename TVal>
+PriorityQueue<D, N, R, IDBits, IDBuckets, TKey, TVal>::~PriorityQueue() { }
 
 // Helper function to map priority to key vector
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, IDBits, TKey, TVal>::keyToCoord(int key, int* k) {
+template <int D, long N, int R, int IDBits, int IDBuckets, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, IDBuckets, TKey, TVal>::keyToCoord(int key, int* k) {
     int quotient = key;
     for (int i = D-1; quotient && i >= 0 ; i--) {
         k[i] = quotient % Basis;
@@ -64,8 +57,8 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::keyToCoord(int key, int* k) {
     }
 }
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, IDBits, TKey, TVal>::finishInserting(Node* n, int dp, int dc) {
+template <int D, long N, int R, int IDBits, int IDBuckets, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, IDBuckets, TKey, TVal>::finishInserting(Node* n, int dp, int dc) {
     if (!n) {
         return;
     }
@@ -77,22 +70,21 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::finishInserting(Node* n, int dp
         Node* child, *desired;
         child = cur->child[i].load();
         do {
-            desired = reinterpret_cast<Node*>(reinterpret_cast<uintptr_t>(child) | Fadp);
+            desired = SetFlags(child, Fadp);
         } while(!cur->child[i].compare_exchange_weak(child, desired));
-        uintptr_t uintPtr = reinterpret_cast<uintptr_t>(child);
-        child = reinterpret_cast<Node*>(ClearMark(uintPtr, Fadp));
+        child = ClearFlags(child, Fadp);
         Node* tmp = nullptr;
         n->child[i].compare_exchange_strong(tmp, child);
     }
     n->adesc = nullptr;
 }
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
+template <int D, long N, int R, int IDBits, int IDBuckets, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, IDBuckets, TKey, TVal>::insert(TKey key, TVal val) {
     // stringstream buffer;
     // buffer << "Worker " << omp_get_thread_num() << " Inserting " << key << ": " << val << endl;
 
-    auto id = ids[key].fetch_add(1);
+    auto id = ids[key % IDBuckets].fetch_add(1);
     auto newKey = (key << IDBits) | id;
 
     if (IDBits > 0 && key > PriorityLimit) {
@@ -259,8 +251,8 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
     // cout << buffer.str();
 }
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() {
+template <int D, long N, int R, int IDBits, int IDBuckets, typename TKey, typename TVal>
+tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, IDBuckets, TKey, TVal>::deleteMin() {
     // stringstream buffer;
     // buffer << "Worker " << omp_get_thread_num() << " deleteMin" << endl;
 
@@ -279,9 +271,7 @@ tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() 
             finishInserting(last, pending->dp, pending->dc);
         }
 
-        Node* child = last->child[d].load();
-        uintptr_t uintPtr = reinterpret_cast<uintptr_t>(child);
-        child = reinterpret_cast<Node*>(ClearMark(uintPtr, 3));
+        Node* child = ClearFlags(last->child[d].load(), Fadp | Fprg);
         if (!child) {
             // buffer << "Dimension " << d << " has no children" << endl;
             d = d - 1;
@@ -317,15 +307,13 @@ tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() 
     return min == nullptr? make_tuple<TKey, TVal, bool>(0, 0, false): make_tuple((min->key >> IDBits), GetVal(min->val), true);
 }
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printPQ(Node* node, int dim, string prefix) {
+template <int D, long N, int R, int IDBits, int IDBuckets, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, IDBuckets, TKey, TVal>::printPQ(Node* node, int dim, string prefix) {
     if (node == nullptr) {
         return;
     }
 
-    uintptr_t uintptr = reinterpret_cast<uintptr_t>(node);
-    uintptr_t flags = IsMarked(uintptr, Fadp|Fprg);
-    node = reinterpret_cast<Node*>(ClearMark(uintptr, Fadp|Fprg));
+    node = ClearFlags(node, Fadp|Fprg);
 
     bool lastChild = node->child[dim] == nullptr;
 
@@ -343,11 +331,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printPQ(Node* node, int dim, st
         newPrefix += "├";
     }
 
-    cout << newPrefix << (node->key >> IDBits) << "-" << (node->key & ((1<<IDBits)-1)) << " (" << std::bitset<2>(flags) << ") [";
-    for (int i = 0; i < D-1; i++) {
-        cout << node->k[i] << ", ";
-    }
-    cout << node->k[D-1] << "]: " << GetVal(node->val) << "(deleted: " << IsDel(node->val) << ")" << endl;
+    cout << newPrefix << node->toString() << endl;
 
     for (int i = D-1; i >= dim; i--) {
         string childPrefix = prefix;
@@ -358,13 +342,13 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printPQ(Node* node, int dim, st
     }
 }
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printPQ() {
+template <int D, long N, int R, int IDBits, int IDBuckets, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, IDBuckets, TKey, TVal>::printPQ() {
     printPQ(this->head, 0, "│");
 }
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-string PriorityQueue<D, N, R, IDBits, TKey, TVal>::formatStack(Stack *s) {
+template <int D, long N, int R, int IDBits, int IDBuckets, typename TKey, typename TVal>
+string PriorityQueue<D, N, R, IDBits, IDBuckets, TKey, TVal>::formatStack(Stack *s) {
     stringstream buffer;
     buffer << "Head: " << (s->head->key >> IDBits) << "-" << (s->head->key & ((1<<IDBits)-1));
     buffer << " Nodes: ";
@@ -390,8 +374,8 @@ string PriorityQueue<D, N, R, IDBits, TKey, TVal>::formatStack(Stack *s) {
     return buffer.str();
 }
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printStack() {
+template <int D, long N, int R, int IDBits, int IDBuckets, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, IDBuckets, TKey, TVal>::printStack() {
     cout << formatStack(stack.load()) << endl;
 }
 

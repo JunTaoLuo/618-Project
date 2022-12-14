@@ -10,7 +10,7 @@
 
 using namespace std;
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
+template <int D, long N, int R, int IDBits, int IDBuckets, typename TKey, typename TVal>
 class PriorityQueue {
 private:
     struct AdoptDesc;
@@ -32,7 +32,11 @@ private:
 
         string toString() {
             stringstream buffer;
-            buffer << "Key: " << (key >> IDBits) << "-" << (key & ((1<<IDBits)-1)) << " (" << std::bitset<2>(key & 3) << ")"  << " Value: " << (val >> 1) << " (deleted: " << (val & 1) << ")" ;
+            buffer << "Key: " << (key >> IDBits) << "-" << (key & ((1<<IDBits)-1)) << " [";
+            for (int i = 0; i < D; i++) {
+                buffer << k[i] << " ";
+            }
+            buffer << "] (" << std::bitset<2>(key & 3) << ")"  << " Value: " << (val >> 1) << " (deleted: " << (val & 1) << ")" ;
             return buffer.str();
         }
     };
