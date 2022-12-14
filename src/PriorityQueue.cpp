@@ -92,21 +92,21 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::finishInserting(Node* n, int dp
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
 void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
-    // cout << "Inserting " << key << ": " << val << endl;
+    stringstream buffer;
+    buffer << "Worker " << omp_get_thread_num() << " Inserting " << key << ": " << val << endl;
 
     auto id = ids[key].fetch_add(1);
     auto newKey = (key << IDBits) | id;
 
     if (IDBits > 0 && key > PriorityLimit) {
-        cout << "Warning: Priority limit exceeded: " << key << " > " << PriorityLimit << endl;
+        buffer << "Warning: Priority limit exceeded: " << key << " > " << PriorityLimit << endl;
     }
     if (IDBits > 0 && id > IDLimit) {
-        cout << "Warning: ID limit exceeded: " << id << " > " << IDLimit << endl;
+        buffer << "Warning: ID limit exceeded: " << id << " > " << IDLimit << endl;
     }
 
     Node* newNode = new Node(newKey, val);
     keyToCoord(newKey, newNode->k);
-
 
     Stack* nodeStack = new Stack();
     Node* predNode = nullptr;
@@ -133,19 +133,8 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
         }
         // end locatePred
 
-        // cout << "Located Pred" << endl;
-        // cout << "Node stack" << endl;
-        // printStack(nodeStack);
-
-        // testing:
-        // cout << "testing stack -------------------------------------" << key << " " << s->head->key << " " << dp << " " << dc << endl;
-        // for (int i = 0; i < D; i++) {
-        //     Node* curNode = s->node[i].load();
-        //     if (curNode) {
-        //         cout << curNode->key << " ";
-        //     }
-        // }
-        // cout << endl;
+        // buffer << "Located Pred" << endl;
+        // buffer << "Node stack: " << formatStack(nodeStack) < endl;
 
         if (currDim == D) {
             break;
@@ -196,9 +185,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
                 }
 
                 if (IsDel(predNode->val) && !IsDel(newNode->val)) {
-                    stringstream buffer;
-                    buffer << "Worker " << omp_get_thread_num() << ": Rewinding stack" << endl;
-                    cout << buffer.str();
+                    buffer << "Rewinding stack" << endl;
 
                     // rewindStack
 
@@ -207,15 +194,13 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
                     Stack* newStack = new Stack();
 
                     do {
-                        // cout << "PredNode: " << predNode->toString() << endl;
-                        // cout << "CurrNode: " << (currNode ? currNode->toString() : "null") << endl;
-                        // cout << "NewNode: " << newNode->toString() << endl;
+                        buffer << "PredNode: " << predNode->toString() << endl;
+                        buffer << "CurrNode: " << (currNode ? currNode->toString() : "null") << endl;
+                        buffer << "NewNode: " << newNode->toString() << endl;
                         currStack = stack.load();
 
-                        // cout << "Current stack:" << endl;
-                        // printStack(currStack);
-                        // cout << "Node stack:" << endl;
-                        // printStack(nodeStack);
+                        buffer << "Current stack: " << formatStack(currStack) << endl;
+                        buffer << "Node stack: " << formatStack(nodeStack) << endl;
 
                         if (currStack->head->ver == nodeStack->head->ver) {
                             if (newNode->key <= currStack->node[D-1].load()->key) {
@@ -237,19 +222,17 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
                             }
                         }
                         else {
-                            cout << "Warning: purge not implemented" << endl;
+                            buffer << "Warning: purge not implemented" << endl;
                         }
 
                         prevStack = currStack;
 
-                        // cout << "Candidate stack:" << endl;
-                        // printStack(newStack);
+                        buffer << "Candidate stack: " << formatStack(newStack) << endl;
                     } while (!stack.compare_exchange_strong(currStack, newStack) && !IsDel(newNode->val));
 
                     // end rewindStack
 
-                    cout << "New stack:" << endl;
-                    printStack(stack.load());
+                    buffer << "New stack: " << formatStack(stack) << endl;
                 }
 
                 break;
@@ -264,11 +247,13 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
             nodeStack->head = currNode;
         }
         else {
-            cout << "Warning: there should never be duplicate keys|id" << endl;
+            buffer << "Warning: there should never be duplicate keys|id" << endl;
             currNode = predNode;
             currDim = predDim;
         }
     }
+
+    cout << buffer.str();
 }
 
 // template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
@@ -437,10 +422,10 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printPQ() {
 }
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printStack(Stack * stack) {
+string PriorityQueue<D, N, R, IDBits, TKey, TVal>::formatStack(Stack *stack) {
     stringstream buffer;
-    buffer << "Worker " << omp_get_thread_num() << " Head: " << (stack->head->key >> IDBits) << "-" << (stack->head->key & ((1<<IDBits)-1)) << endl;
-    buffer << "Nodes: ";
+    buffer << "Head: " << (stack->head->key >> IDBits) << "-" << (stack->head->key & ((1<<IDBits)-1));
+    buffer << " Nodes: ";
     for (int i = 0; i < D; i++) {
         Node* curNode = stack->node[i].load();
         if (ClearFlags(curNode, Fadp|Fprg) == nullptr) {
@@ -449,12 +434,12 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printStack(Stack * stack) {
             buffer << (curNode->key >> IDBits) << "-" << (curNode->key & ((1<<IDBits)-1)) << " ";
         }
     }
-    cout << buffer.str() << endl;
+    return buffer.str();
 }
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
 void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printStack() {
-    printStack(stack.load());
+    cout << formatStack(stack.load()) << endl;
 }
 
 #endif
