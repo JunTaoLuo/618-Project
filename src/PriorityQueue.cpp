@@ -316,19 +316,26 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
 tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() {
+    stringstream buffer;
+    buffer << "Worker " << omp_get_thread_num() << " deleteMin" << endl;
+
     Node* min = nullptr;
-    Stack* sOld = stack, *s = new Stack();
-    *s = *sOld;
-    // s->head = sOld->head;
-    // for (int i = 0; i < D; i++) {
-    //     s->node[i].store(sOld->node[i]);
-    // }
+    Stack* prevStack = stack, *newStack = new Stack();
+    *newStack = *prevStack;
+
+    buffer << "Previous stack: " << formatStack(prevStack) << endl;
+
     int d = D - 1;
     // Modified: change the codition from d > 0 --> d >= 0
     while (d >= 0) {
-        Node* last = s->node[d].load(memory_order_seq_cst);
-        finishInserting(last, d, d);
-        Node* child = last->child[d].load(memory_order_seq_cst);
+        Node* last = newStack->node[d].load();
+        AdoptDesc* pending = last->adesc;
+
+        if (pending && pending->dp <= d && d < pending->dc) {
+            finishInserting(last, pending->dp, pending->dc);
+        }
+
+        Node* child = last->child[d].load();
         uintptr_t uintPtr = reinterpret_cast<uintptr_t>(child);
         child = reinterpret_cast<Node*>(ClearMark(uintPtr, Fadp|Fprg));
         // cout << "child is:" << d << " " << child << endl;
@@ -340,29 +347,28 @@ tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() 
         if (IsDel(val)) {
             // if (!(val & ~Fdel)) {
                 for (int i = d; i < D; i++) {
-                    s->node[i].store(child);
+                    newStack->node[i].store(child);
                 }
                 d = D - 1;
             // } else {
-            //     s->head = reinterpret_cast<Node*>(ClearMark(uintPtr, Fdel));
+            //     newStack->head = reinterpret_cast<Node*>(ClearMark(uintPtr, Fdel));
             //     for (int i = 0; i < D; i++) {
-            //         s->node[i].store(s->head);
+            //         newStack->node[i].store(newStack->head);
             //     }
             //     d = D - 1;
             // }
         } else {
-            // uintptr_t uintPtr = reinterpret_cast<uintptr_t>(val);
             if (child->val.compare_exchange_strong(val, val | Fdel)) {
                 for (int i = d; i < D; i++) {
-                    s->node[i].store(child);
+                    newStack->node[i].store(child);
                 }
                 min = child;
-                stack.compare_exchange_strong(sOld, s);
+                stack.compare_exchange_strong(prevStack, newStack);
                 // int ori = markedNode.fetch_add(1);
                 // bool expected = true;
                 // bool target = false;
                 // if (ori > R - 1 && notPurging.compare_exchange_strong(expected, target)) {
-                //     purge(s->head, s->node[D- 1].load(memory_order_seq_cst));
+                //     purge(newStack->head, newStack->node[D- 1].load(memory_order_seq_cst));
                 //     markedNode.store(R - ori - 1);
                 //     notPurging.compare_exchange_strong(target, expected);
                 // }
@@ -372,6 +378,10 @@ tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() 
     }
     // return min->key;
     // cout << "min address is " << min << endl;
+
+    buffer << "New stack: " << formatStack(stack) << endl;
+
+    cout << buffer.str();
     return min == nullptr? make_tuple<TKey, TVal, bool>(0, 0, false): make_tuple((min->key >> IDBits), GetVal(min->val), true);
 }
 
