@@ -15,6 +15,7 @@
 using namespace std;
 
 static int Fdel = 0x1, Fadp = 0x1, Fprg = 0x2;
+const memory_order default_memory_order = memory_order_relaxed;
 
 #define SetMark(p, m) ({p |= m; p;})
 #define ClearMark(p, m) ({p &= ~m; p;})
@@ -27,10 +28,10 @@ static int Fdel = 0x1, Fadp = 0x1, Fprg = 0x2;
 // Creating and retrieving Val
 #define CreateDeletedVal(v) (v << 1)
 #define CreateVal(v) (v << 1)
-#define GetVal(val) (val.load() >> 1)
+#define GetVal(val) (val.load(default_memory_order) >> 1)
 // Val flags
-#define SetDel(val) ({val |= 1; val.load();})
-#define ClearDel(val) ({val &= ~1; val.load();})
+#define SetDel(val) ({val |= 1; val.load(default_memory_order);})
+#define ClearDel(val) ({val &= ~1; val.load(default_memory_order);})
 #define IsDel(val) (val & 1)
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
@@ -46,9 +47,9 @@ PriorityQueue<D, N, R, IDBits, TKey, TVal>::PriorityQueue():
     Stack* sNew = new Stack();
     sNew->head = head;
     for (int i = 0; i < D; i++) {
-        sNew->node[i].store(head);
+        sNew->node[i].store(head, default_memory_order);
     }
-    stack.store(sNew);
+    stack.store(sNew, default_memory_order);
 }
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
@@ -75,7 +76,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::finishInserting(Node* n, int dp
     dc = ad->dc;
     for (int i = dp; i < dc; i++) {
         Node* child, *desired;
-        child = cur->child[i].load();
+        child = cur->child[i].load(default_memory_order);
         do {
             desired = reinterpret_cast<Node*>(reinterpret_cast<uintptr_t>(child) | Fadp);
         } while(!cur->child[i].compare_exchange_weak(child, desired));
@@ -121,13 +122,13 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
             while (currNode && newNode->k[currDim] > currNode->k[currDim]) {
                 predNode = currNode;
                 predDim = currDim;
-                currNode = ClearFlags(currNode->child[currDim].load(), Fadp|Fprg);
+                currNode = ClearFlags(currNode->child[currDim].load(default_memory_order), Fadp|Fprg);
             }
 
             if (currNode == nullptr || newNode->k[currDim] < currNode->k[currDim]) {
                 break;
             } else {
-                nodeStack->node[currDim].store(currNode);
+                nodeStack->node[currDim].store(currNode, default_memory_order);
                 currDim++;
             }
         }
@@ -157,7 +158,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
         }
 
         // Insert new node
-        if (predNode->child[predDim].load() == currNode) {
+        if (predNode->child[predDim].load(default_memory_order) == currNode) {
             // fillNewNode
 
             AdoptDesc* newAdesc = nullptr;
@@ -170,13 +171,13 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
             }
 
             for (int i = 0; i < predDim; i++) {
-                newNode->child[i].store(SetFlags(nullptr, Fadp));
+                newNode->child[i].store(SetFlags(nullptr, Fadp), default_memory_order);
             }
             for (int i = predDim; i < D; i++) {
-                newNode->child[i].store(nullptr);
+                newNode->child[i].store(nullptr, default_memory_order);
             }
 
-            newNode->child[currDim].store(currNode);
+            newNode->child[currDim].store(currNode, default_memory_order);
             newNode->adesc = newAdesc;
 
             // end fillNewNode
@@ -192,28 +193,28 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
                     // rewindStack
 
                     Stack* prevStack = nullptr;
-                    Stack* currStack = stack.load();
+                    Stack* currStack = stack.load(default_memory_order);
                     Stack* newStack = new Stack();
 
                     do {
                         // buffer << "PredNode: " << predNode->toString() << endl;
                         // buffer << "CurrNode: " << (currNode ? currNode->toString() : "null") << endl;
                         // buffer << "NewNode: " << newNode->toString() << endl;
-                        currStack = stack.load();
+                        currStack = stack.load(default_memory_order);
 
                         // buffer << "Current stack: " << formatStack(currStack) << endl;
                         // buffer << "Node stack: " << formatStack(nodeStack) << endl;
 
                         if (currStack->head->ver == nodeStack->head->ver) {
-                            if (newNode->key <= currStack->node[D-1].load()->key) {
+                            if (newNode->key <= currStack->node[D-1].load(default_memory_order)->key) {
                                 newStack->head = nodeStack->head;
                                 for (int i = 0; i < predDim; i++)
                                 {
-                                    newStack->node[i].store(nodeStack->node[i].load());
+                                    newStack->node[i].store(nodeStack->node[i].load(default_memory_order), default_memory_order);
                                 }
                                 for (int i = predDim; i < D; i++)
                                 {
-                                    newStack->node[i].store(predNode);
+                                    newStack->node[i].store(predNode, default_memory_order);
                                 }
                             }
                             else if (prevStack == nullptr) {
@@ -241,7 +242,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
             }
         }
 
-        if (HasFlags(predNode->child[predDim].load(), Fadp | Fprg)) {
+        if (HasFlags(predNode->child[predDim].load(default_memory_order), Fadp | Fprg)) {
             currNode = head;
             predNode = nullptr;
             currDim = 0;
@@ -265,21 +266,21 @@ tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() 
     // buffer << "Worker " << omp_get_thread_num() << " deleteMin" << endl;
 
     Node* min = nullptr;
-    Stack* prevStack = stack.load(), *newStack = new Stack();
+    Stack* prevStack = stack.load(default_memory_order), *newStack = new Stack();
     newStack->copyFrom(prevStack);
 
     // buffer << "Previous stack: " << formatStack(prevStack) << endl;
 
     int d = D - 1;
     while (d >= 0) {
-        Node* last = newStack->node[d].load();
+        Node* last = newStack->node[d].load(default_memory_order);
         AdoptDesc* pending = last->adesc;
 
         if (pending && pending->dp <= d && d < pending->dc) {
             finishInserting(last, pending->dp, pending->dc);
         }
 
-        Node* child = last->child[d].load();
+        Node* child = last->child[d].load(default_memory_order);
         uintptr_t uintPtr = reinterpret_cast<uintptr_t>(child);
         child = reinterpret_cast<Node*>(ClearMark(uintPtr, 3));
         if (!child) {
@@ -288,10 +289,10 @@ tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() 
             continue;
         }
         // buffer << "Dimension " << d << " has child " << child->toString() << endl;
-        auto val = child->val.load();
+        auto val = child->val.load(default_memory_order);
         if (IsDel(val)) {
             for (int i = d; i < D; i++) {
-                newStack->node[i].store(child);
+                newStack->node[i].store(child, default_memory_order);
             }
             d = D - 1;
 
@@ -299,7 +300,7 @@ tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() 
         } else {
             if (child->val.compare_exchange_strong(val, val | Fdel)) {
                 for (int i = d; i < D; i++) {
-                    newStack->node[i].store(child);
+                    newStack->node[i].store(child, default_memory_order);
                 }
                 min = child;
 
@@ -371,7 +372,7 @@ string PriorityQueue<D, N, R, IDBits, TKey, TVal>::formatStack(Stack *s) {
     TKey maxKey = 0;
     bool error = false;
     for (int i = 0; i < D; i++) {
-        Node* curNode = s->node[i].load();
+        Node* curNode = s->node[i].load(default_memory_order);
         if (ClearFlags(curNode, Fadp|Fprg) == nullptr) {
             buffer << "null ";
         } else {
@@ -392,7 +393,7 @@ string PriorityQueue<D, N, R, IDBits, TKey, TVal>::formatStack(Stack *s) {
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
 void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printStack() {
-    cout << formatStack(stack.load()) << endl;
+    cout << formatStack(stack.load(default_memory_order)) << endl;
 }
 
 #endif
