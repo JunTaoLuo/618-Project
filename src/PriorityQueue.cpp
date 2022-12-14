@@ -156,7 +156,6 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
                 node->child[dc].store(curr);
                 node->adesc = adesc;
                 if (pred->child[dp].compare_exchange_strong(curr, node)) {
-
                     if (adesc) {
                         finishInserting(node, dp, dc);
                     }
@@ -166,8 +165,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
                         Stack* curStack;
                         do {
                             curStack = stack.load(memory_order_seq_cst);
-                            // cout << "the head keys " << (curStack->head->key >> IDBits) << " " << (s.head->key >> IDBits) << endl;
-                            if (s.head->ver == curStack->head->ver) {
+                            if (s.head == curStack->head) {
                                 if (key <= curStack->node[D-1].load(memory_order_seq_cst)->key) {
                                     // cout << "branch 1 " << key << " " << ((curStack->node[D-1].load(memory_order_seq_cst)->key) >> IDBits) << endl;
                                     sNew->head = s.head;
@@ -198,7 +196,6 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
                                 break;
                             }
                             sOld = curStack;
-                            cout << "sOld is: " << (sOld->head->key >> IDBits) << "curStack is: " << (curStack->head->key >> IDBits) << endl;
                         } while(!stack.compare_exchange_strong(sOld, sNew) && !IsDel(node->val.load(memory_order_seq_cst)));
                     }
                 break;
@@ -314,7 +311,8 @@ tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() 
             continue;
         }
         // uintptr_t valPtr = reinterpret_cast<uintptr_t>(child->val.load(memory_order_seq_cst));
-        if (IsDel(child->val)) {
+        auto val = child->val.load();
+        if (IsDel(val)) {
             for (int i = d; i < D; i++) {
                 s->node[i].store(child);
             }
@@ -329,13 +327,15 @@ tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() 
             //     cout << "Purge hasn't been implemented yet" << endl;
             // }
         } else {
-            SetDel(child->val);
-            for (int i = d; i < D; i++) {
-                s->node[i].store(child);
+            // SetDel(child->val);
+            if (child->val.compare_exchange_strong(val, val|Fdel)) {
+                for (int i = d; i < D; i++) {
+                    s->node[i].store(child);
+                }
+                stack.compare_exchange_strong(sOld, s);
+                min = child;
+                break;
             }
-            stack.compare_exchange_strong(sOld, s);
-            min = child;
-            break;
         }
     }
     // return min->key;
