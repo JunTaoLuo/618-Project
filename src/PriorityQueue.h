@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <tuple>
+#include <cstring>
 #include <string>
 #include <iostream>
 #include <sstream>
@@ -41,14 +42,20 @@ private:
         AdoptDesc(): curr(nullptr), dp(0), dc(0) {}
     };
     struct Stack {
-        atomic<Node*>* node;
+        // atomic<Node*>* node;
+        atomic<Node*> node[D];
         Node* head;
         Stack() {
-            node = new atomic<Node*>[D];
+            // node = new atomic<Node*>[D];
             head = nullptr;
             for (int i = 0; i < D; i++) {
                 node[i].store(nullptr);
             }
+        }
+
+        void copyFrom(Stack* other) {
+            head = other->head;
+            memcpy(node, other->node, sizeof(Node*)*D);
         }
     };
     struct PurgeFlag {
