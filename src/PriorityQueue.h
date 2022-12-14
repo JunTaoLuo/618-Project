@@ -62,7 +62,7 @@ private:
     void finishInserting(Node* n, int dp, int dc);
     // void purge(Node* hd, Node* prg);
     void printPQ(Node* node, int dim, string prefix);
-    void printStack(Stack* stack);
+    string formatStack(Stack* stack);
 
     // Private constants
     const int Basis;
