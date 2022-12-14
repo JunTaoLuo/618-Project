@@ -42,8 +42,6 @@ PriorityQueue<D, N, R, IDBits, TKey, TVal>::PriorityQueue():
         sNew->node[i].store(head);
     }
     this->stack.store(sNew);
-    markedNode.store(0);
-    notPurging.store(true);
 }
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
@@ -165,7 +163,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
                         Stack* curStack;
                         do {
                             curStack = stack.load(memory_order_seq_cst);
-                            if (s.head == curStack->head) {
+                            if (s.head->ver == curStack->head->ver) {
                                 if (key <= curStack->node[D-1].load(memory_order_seq_cst)->key) {
                                     // cout << "branch 1 " << key << " " << ((curStack->node[D-1].load(memory_order_seq_cst)->key) >> IDBits) << endl;
                                     sNew->head = s.head;
