@@ -42,11 +42,9 @@ private:
         AdoptDesc(): curr(nullptr), dp(0), dc(0) {}
     };
     struct Stack {
-        // atomic<Node*>* node;
         atomic<Node*> node[D];
         Node* head;
         Stack() {
-            // node = new atomic<Node*>[D];
             head = nullptr;
             for (int i = 0; i < D; i++) {
                 node[i].store(nullptr);
@@ -58,16 +56,10 @@ private:
             memcpy(node, other->node, sizeof(Node*)*D);
         }
     };
-    struct PurgeFlag {
-        int markedNode;
-        bool notPurging;
-        PurgeFlag(int _markedNode, bool _notPurging): markedNode(_markedNode), notPurging(_notPurging) {}
-    };
 
     // Helper function to map priority to key vector
     void keyToCoord(int key, int* k);
     void finishInserting(Node* n, int dp, int dc);
-    // void purge(Node* hd, Node* prg);
     void printPQ(Node* node, int dim, string prefix);
     string formatStack(Stack* stack);
 
@@ -79,8 +71,6 @@ private:
     // Private fields
     Node* head;
     atomic<Stack*> stack;
-    // atomic<int> markedNode;
-    // atomic<bool> notPurging;
     vector<atomic<unsigned short>> ids;
 
 public:
