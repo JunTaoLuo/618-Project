@@ -47,7 +47,7 @@ PriorityQueue<D, N, R, IDBits, TKey, TVal>::PriorityQueue():
     for (int i = 0; i < D; i++) {
         sNew->node[i].store(head);
     }
-    this->stack.store(sNew);
+    stack.store(sNew);
 }
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
@@ -338,18 +338,18 @@ tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() 
         }
         auto val = child->val.load();
         if (IsDel(val)) {
-            if (!(val & ~Fdel)) {
+            // if (!(val & ~Fdel)) {
                 for (int i = d; i < D; i++) {
                     s->node[i].store(child);
                 }
                 d = D - 1;
-            } else {
-                s->head = reinterpret_cast<Node*>(ClearMark(uintPtr, Fdel));
-                for (int i = 0; i < D; i++) {
-                    s->node[i].store(s->head);
-                }
-                d = D - 1;
-            }
+            // } else {
+            //     s->head = reinterpret_cast<Node*>(ClearMark(uintPtr, Fdel));
+            //     for (int i = 0; i < D; i++) {
+            //         s->node[i].store(s->head);
+            //     }
+            //     d = D - 1;
+            // }
         } else {
             // uintptr_t uintPtr = reinterpret_cast<uintptr_t>(val);
             if (child->val.compare_exchange_strong(val, val | Fdel)) {
@@ -366,8 +366,8 @@ tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() 
                 //     markedNode.store(R - ori - 1);
                 //     notPurging.compare_exchange_strong(target, expected);
                 // }
+                break;
             }
-            break;
         }
     }
     // return min->key;
@@ -422,12 +422,12 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printPQ() {
 }
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-string PriorityQueue<D, N, R, IDBits, TKey, TVal>::formatStack(Stack *stack) {
+string PriorityQueue<D, N, R, IDBits, TKey, TVal>::formatStack(Stack *s) {
     stringstream buffer;
-    buffer << "Head: " << (stack->head->key >> IDBits) << "-" << (stack->head->key & ((1<<IDBits)-1));
+    buffer << "Head: " << (s->head->key >> IDBits) << "-" << (s->head->key & ((1<<IDBits)-1));
     buffer << " Nodes: ";
     for (int i = 0; i < D; i++) {
-        Node* curNode = stack->node[i].load();
+        Node* curNode = s->node[i].load();
         if (ClearFlags(curNode, Fadp|Fprg) == nullptr) {
             buffer << "null ";
         } else {
