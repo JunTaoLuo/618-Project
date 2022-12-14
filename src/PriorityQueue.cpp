@@ -70,14 +70,10 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::finishInserting(Node* n, int dp
         return;
     }
     AdoptDesc* ad = n->adesc;
-    if (!ad || dc < ad->dp || dp > ad->dc) {
-        return;
-    }
     Node* child, *cur = ad->curr;
     dp = ad->dp;
     dc = ad->dc;
     for (int i = dp; i < dc; i++) {
-        // TODO: Only change local data?
         Node* child, *desired;
         child = cur->child[i].load();
         do {
@@ -93,17 +89,19 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::finishInserting(Node* n, int dp
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
 void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
-    stringstream buffer;
-    buffer << "Worker " << omp_get_thread_num() << " Inserting " << key << ": " << val << endl;
+    // stringstream buffer;
+    // buffer << "Worker " << omp_get_thread_num() << " Inserting " << key << ": " << val << endl;
 
     auto id = ids[key].fetch_add(1);
     auto newKey = (key << IDBits) | id;
 
     if (IDBits > 0 && key > PriorityLimit) {
-        buffer << "Warning: Priority limit exceeded: " << key << " > " << PriorityLimit << endl;
+        // buffer << "Warning: Priority limit exceeded: " << key << " > " << PriorityLimit << endl;
+        cout << "Warning: Priority limit exceeded: " << key << " > " << PriorityLimit << endl;
     }
     if (IDBits > 0 && id > IDLimit) {
-        buffer << "Warning: ID limit exceeded: " << id << " > " << IDLimit << endl;
+        // buffer << "Warning: ID limit exceeded: " << id << " > " << IDLimit << endl;
+        cout << "Warning: ID limit exceeded: " << id << " > " << IDLimit << endl;
     }
 
     Node* newNode = new Node(newKey, val);
@@ -118,6 +116,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
 
     while (true) {
         // locatePred;
+
         while (currDim < D) {
             while (currNode && newNode->k[currDim] > currNode->k[currDim]) {
                 predNode = currNode;
@@ -132,6 +131,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
                 currDim++;
             }
         }
+
         // end locatePred
 
         // buffer << "Located Pred" << endl;
@@ -159,6 +159,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
         // Insert new node
         if (predNode->child[predDim].load() == currNode) {
             // fillNewNode
+
             AdoptDesc* newAdesc = nullptr;
 
             if (predDim != currDim) {
@@ -186,7 +187,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
                 }
 
                 if (IsDel(predNode->val) && !IsDel(newNode->val)) {
-                    buffer << "Rewinding stack" << endl;
+                    // buffer << "Rewinding stack" << endl;
 
                     // rewindStack
 
@@ -195,13 +196,13 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
                     Stack* newStack = new Stack();
 
                     do {
-                        buffer << "PredNode: " << predNode->toString() << endl;
-                        buffer << "CurrNode: " << (currNode ? currNode->toString() : "null") << endl;
-                        buffer << "NewNode: " << newNode->toString() << endl;
+                        // buffer << "PredNode: " << predNode->toString() << endl;
+                        // buffer << "CurrNode: " << (currNode ? currNode->toString() : "null") << endl;
+                        // buffer << "NewNode: " << newNode->toString() << endl;
                         currStack = stack.load();
 
-                        buffer << "Current stack: " << formatStack(currStack) << endl;
-                        buffer << "Node stack: " << formatStack(nodeStack) << endl;
+                        // buffer << "Current stack: " << formatStack(currStack) << endl;
+                        // buffer << "Node stack: " << formatStack(nodeStack) << endl;
 
                         if (currStack->head->ver == nodeStack->head->ver) {
                             if (newNode->key <= currStack->node[D-1].load()->key) {
@@ -216,7 +217,6 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
                                 }
                             }
                             else if (prevStack == nullptr) {
-                                // *newStack = *currStack;
                                 newStack->copyFrom(currStack);
                             }
                             else {
@@ -224,17 +224,17 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
                             }
                         }
                         else {
-                            buffer << "Warning: purge not implemented" << endl;
+                            // buffer << "Warning: purge not implemented" << endl;
                         }
 
                         prevStack = currStack;
 
-                        buffer << "Candidate stack: " << formatStack(newStack) << endl;
+                        // buffer << "Candidate stack: " << formatStack(newStack) << endl;
                     } while (!stack.compare_exchange_strong(currStack, newStack) && !IsDel(newNode->val));
 
                     // end rewindStack
 
-                    buffer << "New stack: " << formatStack(stack) << endl;
+                    // buffer << "New stack: " << formatStack(stack) << endl;
                 }
 
                 break;
@@ -249,87 +249,28 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
             nodeStack->head = currNode;
         }
         else {
-            buffer << "Warning: there should never be duplicate keys|id" << endl;
+            // buffer << "Warning: there should never be duplicate keys|id" << endl;
+            cout << "Warning: there should never be duplicate keys|id" << endl;
             currNode = predNode;
             currDim = predDim;
         }
     }
 
-    cout << buffer.str();
+    // cout << buffer.str();
 }
-
-// template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-// void PriorityQueue<D, N, R, IDBits, TKey, TVal>::purge(Node* hd, Node* prg) {
-//     if (hd != head) {
-//         return;
-//     }
-//     Node* hdNew = new Node(0), *prgCopy = new Node(0);
-//     // *prgCopy = *prg;
-//     prgCopy->adesc = prg->adesc;
-//     copy(begin(prg->k), end(prg->k), begin(prgCopy->k));
-//     prgCopy->key = prg->key;
-//     prgCopy->ver = prg->ver;
-//     prgCopy->val.store(prgCopy->val);
-//     for (int i = 0; i < D; i++) {
-//         prgCopy->child[i].store(nullptr);
-//     }
-//     hdNew->val = Fdel;
-//     hdNew->ver = hd->ver + 1;
-//     Node* child;
-//     Node* pvt = hd;
-//     for (int d = 0; d < D;) {
-//         bool locatePivot = true;
-//         // LocatePivot
-//         uintptr_t unitPtr;
-//         while(prg->k[d] > pvt->k[d]) {
-//             finishInserting(pvt, d, d);
-//             unitPtr = reinterpret_cast<uintptr_t>(pvt->child[d].load(memory_order_seq_cst));
-//             pvt = reinterpret_cast<Node*>(ClearMark(unitPtr, Fadp|Fprg));
-//         }
-//         do {
-//             child = pvt->child[d].load(memory_order_seq_cst);
-//             unitPtr = reinterpret_cast<uintptr_t>(child);
-//         } while(pvt->child[d].compare_exchange_strong(child, reinterpret_cast<Node*>(SetMark(unitPtr, Fprg))) || IsMarked(unitPtr, Fadp|Fprg));
-//         if (IsMarked(unitPtr, Fprg)) {
-//             child = reinterpret_cast<Node*>(unitPtr, Fprg);
-//         } else {
-//             locatePivot = false;
-//         }
-//         if (!locatePivot) {
-//             pvt = hd;
-//             d = 0;
-//             continue;
-//         }
-//         if (pvt == hd) {
-//             hdNew->child[d].store(child);
-//             prgCopy->child[d].store(reinterpret_cast<Node*>(Fdel));
-//         } else {
-//             prgCopy->child[d].store(child);
-//             if (d == 0 || prgCopy->child[d - 1].load(memory_order_seq_cst) == reinterpret_cast<Node*>(Fdel)) {
-//                 hdNew->child[d].store(prgCopy);
-//             }
-//         }
-//         d = d + 1;
-//     }
-//     SetDel(hd->val);
-//     SetDel(prg->val);
-//     head = hdNew;
-// }
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
 tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() {
-    stringstream buffer;
-    buffer << "Worker " << omp_get_thread_num() << " deleteMin" << endl;
+    // stringstream buffer;
+    // buffer << "Worker " << omp_get_thread_num() << " deleteMin" << endl;
 
     Node* min = nullptr;
     Stack* prevStack = stack.load(), *newStack = new Stack();
-    // *newStack = *prevStack;
     newStack->copyFrom(prevStack);
 
-    buffer << "Previous stack: " << formatStack(prevStack) << endl;
+    // buffer << "Previous stack: " << formatStack(prevStack) << endl;
 
     int d = D - 1;
-    // Modified: change the codition from d > 0 --> d >= 0
     while (d >= 0) {
         Node* last = newStack->node[d].load();
         AdoptDesc* pending = last->adesc;
@@ -341,29 +282,20 @@ tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() 
         Node* child = last->child[d].load();
         uintptr_t uintPtr = reinterpret_cast<uintptr_t>(child);
         child = reinterpret_cast<Node*>(ClearMark(uintPtr, 3));
-        // cout << "child is:" << d << " " << child << endl;
         if (!child) {
-            buffer << "Dimension " << d << " has no children" << endl;
+            // buffer << "Dimension " << d << " has no children" << endl;
             d = d - 1;
             continue;
         }
-        buffer << "Dimension " << d << " has child " << child->toString() << endl;
+        // buffer << "Dimension " << d << " has child " << child->toString() << endl;
         auto val = child->val.load();
         if (IsDel(val)) {
-            // if (!(val & ~Fdel)) {
-                for (int i = d; i < D; i++) {
-                    newStack->node[i].store(child);
-                }
-                d = D - 1;
+            for (int i = d; i < D; i++) {
+                newStack->node[i].store(child);
+            }
+            d = D - 1;
 
-                buffer << "Deleted child so retrying with stack " << formatStack(newStack) << endl;
-            // } else {
-            //     newStack->head = reinterpret_cast<Node*>(ClearMark(uintPtr, Fdel));
-            //     for (int i = 0; i < D; i++) {
-            //         newStack->node[i].store(newStack->head);
-            //     }
-            //     d = D - 1;
-            // }
+            // buffer << "Deleted child so retrying with stack " << formatStack(newStack) << endl;
         } else {
             if (child->val.compare_exchange_strong(val, val | Fdel)) {
                 for (int i = d; i < D; i++) {
@@ -371,27 +303,17 @@ tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() 
                 }
                 min = child;
 
-                buffer << "Candidate stack: " << formatStack(newStack) << endl;
+                // buffer << "Candidate stack: " << formatStack(newStack) << endl;
                 bool stackUpdated = stack.compare_exchange_strong(prevStack, newStack);
-                // int ori = markedNode.fetch_add(1);
-                // bool expected = true;
-                // bool target = false;
-                // if (ori > R - 1 && notPurging.compare_exchange_strong(expected, target)) {
-                //     purge(newStack->head, newStack->node[D- 1].load(memory_order_seq_cst));
-                //     markedNode.store(R - ori - 1);
-                //     notPurging.compare_exchange_strong(target, expected);
-                // }
-                buffer << "Stack updated: " << stackUpdated << endl;
+                // buffer << "Stack updated: " << stackUpdated << endl;
                 break;
             }
         }
     }
-    // return min->key;
-    // cout << "min address is " << min << endl;
 
-    buffer << "New stack: " << formatStack(stack) << endl;
+    // buffer << "New stack: " << formatStack(stack) << endl;
 
-    cout << buffer.str();
+    // cout << buffer.str();
     return min == nullptr? make_tuple<TKey, TVal, bool>(0, 0, false): make_tuple((min->key >> IDBits), GetVal(min->val), true);
 }
 
