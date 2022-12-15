@@ -250,7 +250,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
         }
         else {
             // buffer << "Warning: there should never be duplicate keys|id" << endl;
-            cout << "Warning: there should never be duplicate keys|id" << endl;
+            // cout << "Warning: there should never be duplicate keys|id" << endl;
             currNode = predNode;
             currDim = predDim;
         }
