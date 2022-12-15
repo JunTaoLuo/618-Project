@@ -15,7 +15,7 @@ struct Vertex {
 
 // Single Source Shortest Path: Dijkstra's Algorithm
 // Assume we want distance from node 0
-void sssp(const std::vector<std::vector<uint>> &edges,
+double sssp(const std::vector<std::vector<uint>> &edges,
           std::vector<uint> &distances) {
   uint numVertices = distances.size();
   // Keeps track of which node has been visited
@@ -28,8 +28,10 @@ void sssp(const std::vector<std::vector<uint>> &edges,
   frontier.push(Vertex(0, 0));
   uint visitedCount = 0;
 
-  while (frontier.size() > 0) {
-  // while (visitedCount < numVertices && frontier.size() > 0) { // Possible optimization
+  Timer totalTimer;
+
+  // while (frontier.size() > 0) {
+  while (visitedCount < numVertices && frontier.size() > 0) { // Possible optimization
     auto v = frontier.top();
     frontier.pop();
 
@@ -46,6 +48,9 @@ void sssp(const std::vector<std::vector<uint>> &edges,
       }
     }
   }
+
+  double totalTime = totalTimer.elapsed();
+  return totalTime;
 }
 
 int main(int argc, char *argv[]) {
@@ -65,11 +70,7 @@ int main(int argc, char *argv[]) {
   //   printf("\n");
   // }
 
-  Timer totalTimer;
-
-  sssp(edges, distances);
-
-  double totalTime = totalTimer.elapsed();
+  double totalTime = sssp(edges, distances);
 
   // Profiling results ==================
   printf("total time: %.6fs\n", totalTime);
