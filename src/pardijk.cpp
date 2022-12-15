@@ -149,12 +149,14 @@ void sssp_worker(Graph &graph) {
 
 // Single Source Shortest Path: Dijkstra's Algorithm
 // Assume we want distance from node 0
-void sssp(const std::vector<std::vector<uint>> &edges,
+double sssp(const std::vector<std::vector<uint>> &edges,
           std::vector<uint> &distances) {
   uint numVertices = distances.size();
   GlobalLockPQ pq = GlobalLockPQ();
   pq.insert(Offer(0, 0));
   Graph graph = Graph(numVertices, edges, distances, pq);
+
+  Timer totalTimer;
 
   #pragma omp parallel shared(graph)
   {
@@ -162,7 +164,11 @@ void sssp(const std::vector<std::vector<uint>> &edges,
     sssp_worker(graph);
   }
 
+  double totalTime = totalTimer.elapsed();
+
   distances.swap(graph.distances);
+
+  return totalTime;
 }
 
 int main(int argc, char *argv[]) {
@@ -172,11 +178,7 @@ int main(int argc, char *argv[]) {
   loadGraphFromFile(options.inputFile, edges);
   std::vector<uint> distances(edges.size(), UINT_MAX);
 
-  Timer totalTimer;
-
-  sssp(edges, distances);
-
-  double totalTime = totalTimer.elapsed();
+  double totalTime = sssp(edges, distances);
 
   // Profiling results ==================
   printf("total time: %.6fs\n", totalTime);

@@ -48,9 +48,9 @@ struct Graph {
       uint offerDistance = offers[vertex];
       if (offerDistance == 0 || distance < offerDistance) {
         offers[vertex] = distance;
-        printf("Worker %d inserting new order (%u -> %u)\n", omp_get_thread_num(), vertex, distance);
+        // printf("Worker %d inserting new order (%u -> %u)\n", omp_get_thread_num(), vertex, distance);
         pq->insert(distance, vertex);
-        printf("Worker %d inserted new order (%u -> %u)\n", omp_get_thread_num(), vertex, distance);
+        // printf("Worker %d inserted new order (%u -> %u)\n", omp_get_thread_num(), vertex, distance);
       }
     }
     omp_unset_lock(&(offerLocks[vertex]));
@@ -71,17 +71,17 @@ void sssp_worker(Graph<D, N, R, IDBits, TKey, TVal> &graph) {
   int threadIndex = omp_get_thread_num();
   int numThreads = omp_get_num_threads();
 
-  printf("Worker %d started\n", threadIndex);
+  // printf("Worker %d started\n", threadIndex);
 
   while (!graph.done[threadIndex]) {
     TKey distance;
     TVal vertex;
     bool valid;
 
-    printf("Worker %d retrieving offer\n", threadIndex);
+    // printf("Worker %d retrieving offer\n", threadIndex);
     tie(distance, vertex, valid) = graph.pq->deleteMin();
     if (valid) {
-      printf("Worker %d retrieved offer (%u -> %u)\n", threadIndex, (uint)vertex, (uint)distance);
+      // printf("Worker %d retrieved offer (%u -> %u)\n", threadIndex, (uint)vertex, (uint)distance);
       if (graph.processOffer((uint)distance, (uint)vertex)) {
         uint currentVertex = (uint)vertex;
         auto neighbors = graph.edges[currentVertex];
@@ -97,7 +97,7 @@ void sssp_worker(Graph<D, N, R, IDBits, TKey, TVal> &graph) {
       }
     }
     else {
-      printf("Worker %d did not retrieve any offers\n", threadIndex);
+      // printf("Worker %d did not retrieve any offers\n", threadIndex);
       graph.done[threadIndex] = true;
       while (graph.done[threadIndex]) {
         int i;
@@ -108,14 +108,14 @@ void sssp_worker(Graph<D, N, R, IDBits, TKey, TVal> &graph) {
         }
         // printf("Worker %d noticed worker %d is not done\n", threadIndex, i);
       }
-      printf("Worker %d restarted\n", threadIndex);
+      // printf("Worker %d restarted\n", threadIndex);
     }
   }
 }
 
 // Single Source Shortest Path: Dijkstra's Algorithm
 // Assume we want distance from node 0
-void sssp(const std::vector<std::vector<uint>> &edges,
+double sssp(const std::vector<std::vector<uint>> &edges,
           std::vector<uint> &distances) {
   uint numVertices = distances.size();
 
@@ -123,16 +123,22 @@ void sssp(const std::vector<std::vector<uint>> &edges,
   pq->insert(0, 0);
   auto graph = Graph<8, 4294967295, 100, 13, long, long>(numVertices, edges, distances, pq);
 
+  Timer totalTimer;
+
   #pragma omp parallel shared(graph)
   {
     // printf("Hello world from omp thread %d/%d\n", omp_get_thread_num(), omp_get_num_threads());
     sssp_worker(graph);
   }
 
-  graph.pq->printPQ();
-  graph.pq->printStack();
+  double totalTime = totalTimer.elapsed();
+
+  // graph.pq->printPQ();
+  // graph.pq->printStack();
 
   distances.swap(graph.distances);
+
+  return totalTime;
 }
 
 int main(int argc, char *argv[]) {
@@ -142,11 +148,7 @@ int main(int argc, char *argv[]) {
   loadGraphFromFile(options.inputFile, edges);
   std::vector<uint> distances(edges.size(), UINT_MAX);
 
-  Timer totalTimer;
-
-  sssp(edges, distances);
-
-  double totalTime = totalTimer.elapsed();
+  double totalTime = sssp(edges, distances);
 
   // Profiling results ==================
   printf("total time: %.6fs\n", totalTime);
