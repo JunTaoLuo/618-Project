@@ -11,6 +11,8 @@
 #include <omp.h>
 using namespace std;
 
+#define BenchmarkDim 8
+
 // reference: https://stackoverflow.com/questions/36922371/generate-different-random-numbers
 vector<int> generateRandNum(int size) {
     vector<int> numbers;
@@ -27,70 +29,103 @@ vector<int> generateRandNum(int size) {
     return numbers;
 }
 
-void insertDelete(vector<int>& randNums, PriorityQueue<8, 1000001, 100, 0, int, int>* pq) {
+void benchmarkMDList(vector<int>& randNums) {
+    auto pq = new PriorityQueue<BenchmarkDim, 1000001, 100, 0, int, int>();
+
     Timer t;
     #pragma omp parallel for schedule(static, 1)
     for (int i = 0; i < randNums.size(); i++) {
         pq->insert(randNums[i], 0);
     }
-    cout << "insert time is: " << t.elapsed() << endl;
-    t.reset();
+    cout << "MDList Insert: " << t.elapsed() << endl;
 
+    t.reset();
     #pragma omp parallel for schedule(static, 1)
     for (int i = 0; i < randNums.size(); i++) {
         auto currMin = pq->deleteMin();
-        // cout << omp_get_thread_num() << " " << get<0>(currMin) << " " << get<1>(currMin) << " " << get<2>(currMin) << endl;
     }
-    cout << "delete time is: " << t.elapsed() << endl;
+    cout << "MDList Delete: " << t.elapsed() << endl;
+
+    t.reset();
+    #pragma omp parallel for schedule(static, 1)
+    for (int i = 0; i < randNums.size(); i++) {
+        if (rand() % 2) {
+            pq->insert(randNums[i], 0);
+        }
+        else {
+            auto currMin = pq->deleteMin();
+        }
+    }
+    cout << "MDList Mixed: " << t.elapsed() << endl;
     return;
 }
 
-void insertDeleteSeq(vector<int>& randNums, priority_queue<Offer>& pq) {
+void benchmarkSeq(vector<int>& randNums) {
+    priority_queue<Offer> pq;
+
     Timer t;
     for (int i = 0; i < randNums.size(); i++) {
-
         pq.push(Offer(randNums[i], randNums[i]));
     }
-    cout << "sequential insert time is: " << t.elapsed() << endl;
+    cout << "Seq Insert: " << t.elapsed() << endl;
+
     t.reset();
     for (int i = 0; i < randNums.size(); i++) {
         auto currMin = pq.top();
         pq.pop();
         // cout << currMin << endl;
     }
-    cout << "sequential delete time is: " << t.elapsed() << endl;
+    cout << "Seq DeleteMin: " << t.elapsed() << endl;
+
+    t.reset();
+    for (int i = 0; i < randNums.size(); i++) {
+        if (rand() % 2) {
+            pq.push(Offer(randNums[i], randNums[i]));
+        }
+        else if (pq.size() > 0) {
+            auto currMin = pq.top();
+            pq.pop();
+        }
+    }
+    cout << "Seq Mixed: " << t.elapsed() << endl;
 }
 
-void insertDeleteCoarse(vector<int>& randNums, GlobalLockPQ* pq) {
+void benchamrkGLock(vector<int>& randNums) {
+    GlobalLockPQ* pq = new GlobalLockPQ();
+
     Timer t;
     #pragma omp parallel for schedule(static, 1)
     for (int i = 0; i < randNums.size(); i++) {
         pq->insert(Offer(i, randNums[i]));
     }
-    cout << "globalLock insert time is: " << t.elapsed() << endl;
+    cout << "GLock Insert: " << t.elapsed() << endl;
+
     t.reset();
     #pragma omp parallel for schedule(static, 1)
     for (int i = 0; i < randNums.size(); i++) {
         pq->deleteMin();
     }
-    cout << "globalLock delete time is: " << t.elapsed() << endl;
+    cout << "GLock Delete: " << t.elapsed() << endl;
+
+    t.reset();
+    #pragma omp parallel for schedule(static, 1)
+    for (int i = 0; i < randNums.size(); i++) {
+        if (rand() % 2) {
+            pq->insert(Offer(i, randNums[i]));
+        }
+        else {
+            pq->deleteMin();
+        }
+    }
+    cout << "Seq Mixed: " << t.elapsed() << endl;
 }
 
 int main(int argc, char *argv[]) {
     vector<int> randNums = generateRandNum(1000000);
     // MicroTestOptions options = parseTestOptions(argc, argv);
-    auto pq = new PriorityQueue<8, 1000001, 100, 0, int, int>();
-    priority_queue<Offer> seqPQ;
-    GlobalLockPQ* glPQ = new GlobalLockPQ();
-    Timer t;
-    t.reset();
-    insertDelete(randNums, pq);
-    cout << "Insert and Delele time: " << t.elapsed() << "----------------------" << endl;
-    t.reset();
-    insertDeleteSeq(randNums, seqPQ);
-    cout << "Sequential Insert and Delele time: " << t.elapsed() << "---------------------------" << endl;
-    t.reset();
-    insertDeleteCoarse(randNums, glPQ);
-    cout << "GlobalLock Insert and Delele time: " << t.elapsed() << "---------------------------" << endl;
+
+    // benchmarkSeq(randNums);
+    benchamrkGLock(randNums);
+    benchmarkMDList(randNums);
     return 0;
 }
