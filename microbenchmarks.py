@@ -49,7 +49,7 @@ for scene, perf in zip(scenarios, perfs):
     print('|'.join(f' {x:<15} ' for x in [scene] + perf))
 
 score = 0.0
-print('\n-- Speedup Table ---')
+print('\n-- Ops/s Table ---')
 print(header)
 print('-' * len(header))
 for scene, perf in zip(scenarios, perfs):

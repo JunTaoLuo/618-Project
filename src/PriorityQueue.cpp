@@ -96,6 +96,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
     auto newKey = (key << IDBits) | id;
     // auto newKey = key;
     // cout << "the new key is: " << (newKey == key) << endl;
+    // cout << "Inserting key: " + key << endl;
 
     if (IDBits > 0 && key > PriorityLimit) {
         // buffer << "Warning: Priority limit exceeded: " << key << " > " << PriorityLimit << endl;
@@ -252,12 +253,13 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
         }
         else {
             // buffer << "Warning: there should never be duplicate keys|id" << endl;
-            // cout << "Warning: there should never be duplicate keys|id" << endl;
+            // cout << "Warning: there should never be duplicate keys|id: " + key << endl;
             currNode = predNode;
             currDim = predDim;
         }
     }
 
+    // cout << "Inserted: " + key << endl;
     // cout << buffer.str();
 }
 
