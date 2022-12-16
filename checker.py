@@ -17,7 +17,7 @@ prog = args.prog
 if os.environ["HOME"].startswith("/afs/andrew.cmu.edu"):
     workers = [4, 8]
 else:
-    workers = [16, 32, 64, 128]
+    workers = [4, 8, 16, 32, 64, 128]
 
 ref_perfs = {}
 
