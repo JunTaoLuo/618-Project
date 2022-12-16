@@ -37,14 +37,14 @@ void benchmarkMDList(vector<int>& randNums) {
     for (int i = 0; i < randNums.size(); i++) {
         pq->insert(randNums[i], 0);
     }
-    cout << "MDList Insert: " << t.elapsed() << endl;
+    cout << "MDList Insert: " << t.elapsed() << "s" << endl;
 
     t.reset();
     #pragma omp parallel for schedule(static, 1)
     for (int i = 0; i < randNums.size(); i++) {
         auto currMin = pq->deleteMin();
     }
-    cout << "MDList Delete: " << t.elapsed() << endl;
+    cout << "MDList Delete: " << t.elapsed() << "s" << endl;
 
     t.reset();
     #pragma omp parallel for schedule(static, 1)
@@ -56,7 +56,7 @@ void benchmarkMDList(vector<int>& randNums) {
             auto currMin = pq->deleteMin();
         }
     }
-    cout << "MDList Mixed: " << t.elapsed() << endl;
+    cout << "MDList Mixed: " << t.elapsed() << "s" << endl;
     return;
 }
 
@@ -67,7 +67,7 @@ void benchmarkSeq(vector<int>& randNums) {
     for (int i = 0; i < randNums.size(); i++) {
         pq.push(Offer(randNums[i], randNums[i]));
     }
-    cout << "Seq Insert: " << t.elapsed() << endl;
+    cout << "Seq Insert: " << t.elapsed() << "s" << endl;
 
     t.reset();
     for (int i = 0; i < randNums.size(); i++) {
@@ -75,7 +75,7 @@ void benchmarkSeq(vector<int>& randNums) {
         pq.pop();
         // cout << currMin << endl;
     }
-    cout << "Seq DeleteMin: " << t.elapsed() << endl;
+    cout << "Seq DeleteMin: " << t.elapsed() << "s" << endl;
 
     t.reset();
     for (int i = 0; i < randNums.size(); i++) {
@@ -87,7 +87,7 @@ void benchmarkSeq(vector<int>& randNums) {
             pq.pop();
         }
     }
-    cout << "Seq Mixed: " << t.elapsed() << endl;
+    cout << "Seq Mixed: " << t.elapsed() << "s" << endl;
 }
 
 void benchamrkGLock(vector<int>& randNums) {
@@ -98,14 +98,14 @@ void benchamrkGLock(vector<int>& randNums) {
     for (int i = 0; i < randNums.size(); i++) {
         pq->insert(Offer(i, randNums[i]));
     }
-    cout << "GLock Insert: " << t.elapsed() << endl;
+    cout << "GLock Insert: " << t.elapsed() << "s" << endl;
 
     t.reset();
     #pragma omp parallel for schedule(static, 1)
     for (int i = 0; i < randNums.size(); i++) {
         pq->deleteMin();
     }
-    cout << "GLock Delete: " << t.elapsed() << endl;
+    cout << "GLock Delete: " << t.elapsed() << "s" << endl;
 
     t.reset();
     #pragma omp parallel for schedule(static, 1)
@@ -117,7 +117,7 @@ void benchamrkGLock(vector<int>& randNums) {
             pq->deleteMin();
         }
     }
-    cout << "Seq Mixed: " << t.elapsed() << endl;
+    cout << "GLock Mixed: " << t.elapsed() << "s" << endl;
 }
 
 int main(int argc, char *argv[]) {
