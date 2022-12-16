@@ -4,7 +4,7 @@
 #include <omp.h>
 #include "PriorityQueue.cpp"
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
+template <int D, long N, int R, int IDBits, int CAP, typename TKey, typename TVal>
 struct Graph {
   std::vector<bool> done;
   std::vector<std::vector<uint>> edges;
@@ -12,9 +12,9 @@ struct Graph {
   std::vector<uint> offers;
   std::vector<omp_lock_t> distanceLocks;
   std::vector<omp_lock_t> offerLocks;
-  PriorityQueue<D, N, R, IDBits, TKey, TVal>* pq;
+  PriorityQueue<D, N, R, IDBits, CAP, TKey, TVal>* pq;
 
-  Graph(uint numVertices, const std::vector<std::vector<uint>> &_edges, std::vector<uint> &_distances, PriorityQueue<D, N, R, IDBits, TKey, TVal>* _pq) {
+  Graph(uint numVertices, const std::vector<std::vector<uint>> &_edges, std::vector<uint> &_distances, PriorityQueue<D, N, R, IDBits, CAP, TKey, TVal>* _pq) {
     done = std::vector<bool>(omp_get_num_threads(), false);
     offers = std::vector<uint>(numVertices, 0); // 0 indicates no current offer
     distances = _distances;
@@ -48,9 +48,9 @@ struct Graph {
       uint offerDistance = offers[vertex];
       if (offerDistance == 0 || distance < offerDistance) {
         offers[vertex] = distance;
-        printf("Worker %d inserting new order (%u -> %u)\n", omp_get_thread_num(), vertex, distance);
+        // printf("Worker %d inserting new order (%u -> %u)\n", omp_get_thread_num(), vertex, distance);
         pq->insert(distance, vertex);
-        printf("Worker %d inserted new order (%u -> %u)\n", omp_get_thread_num(), vertex, distance);
+        // printf("Worker %d inserted new order (%u -> %u)\n", omp_get_thread_num(), vertex, distance);
       }
     }
     omp_unset_lock(&(offerLocks[vertex]));
@@ -66,8 +66,8 @@ struct Graph {
   }
 };
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void sssp_worker(Graph<D, N, R, IDBits, TKey, TVal> &graph) {
+template <int D, long N, int R, int IDBits, int CAP, typename TKey, typename TVal>
+void sssp_worker(Graph<D, N, R, IDBits, CAP, TKey, TVal> &graph) {
   int threadIndex = omp_get_thread_num();
   int numThreads = omp_get_num_threads();
 
@@ -78,10 +78,10 @@ void sssp_worker(Graph<D, N, R, IDBits, TKey, TVal> &graph) {
     TVal vertex;
     bool valid;
 
-    printf("Worker %d retrieving offer\n", threadIndex);
+    // printf("Worker %d retrieving offer\n", threadIndex);
     tie(distance, vertex, valid) = graph.pq->deleteMin();
     if (valid) {
-      printf("Worker %d retrieved offer (%u -> %u)\n", threadIndex, (uint)vertex, (uint)distance);
+      // printf("Worker %d retrieved offer (%u -> %u)\n", threadIndex, (uint)vertex, (uint)distance);
       if (graph.processOffer((uint)distance, (uint)vertex)) {
         uint currentVertex = (uint)vertex;
         auto neighbors = graph.edges[currentVertex];
@@ -97,7 +97,7 @@ void sssp_worker(Graph<D, N, R, IDBits, TKey, TVal> &graph) {
       }
     }
     else {
-      printf("Worker %d did not retrieve any offers\n", threadIndex);
+      // printf("Worker %d did not retrieve any offers\n", threadIndex);
       graph.done[threadIndex] = true;
       while (graph.done[threadIndex]) {
         int i;
@@ -108,7 +108,7 @@ void sssp_worker(Graph<D, N, R, IDBits, TKey, TVal> &graph) {
         }
         // printf("Worker %d noticed worker %d is not done\n", threadIndex, i);
       }
-      printf("Worker %d restarted\n", threadIndex);
+      // printf("Worker %d restarted\n", threadIndex);
     }
   }
 }
@@ -119,9 +119,9 @@ void sssp(const std::vector<std::vector<uint>> &edges,
           std::vector<uint> &distances) {
   uint numVertices = distances.size();
 
-  auto pq = new PriorityQueue<8, 4294967295, 100, 13, long, long>();
+  auto pq = new PriorityQueue<8, 4294967295, 100, 13, 524288, long, long>();
   pq->insert(0, 0);
-  auto graph = Graph<8, 4294967295, 100, 13, long, long>(numVertices, edges, distances, pq);
+  auto graph = Graph<8, 4294967295, 100, 13, 524288, long, long>(numVertices, edges, distances, pq);
 
   #pragma omp parallel shared(graph)
   {
@@ -129,8 +129,8 @@ void sssp(const std::vector<std::vector<uint>> &edges,
     sssp_worker(graph);
   }
 
-  graph.pq->printPQ();
-  graph.pq->printStack();
+  // graph.pq->printPQ();
+  // graph.pq->printStack();
 
   distances.swap(graph.distances);
 }

@@ -27,7 +27,7 @@ vector<int> generateRandNum(int size) {
     return numbers;
 }
 
-void insertDelete(vector<int>& randNums, PriorityQueue<8, 1000001, 100, 0, int, int>* pq) {
+void insertDelete(vector<int>& randNums, PriorityQueue<8, 1000001, 100, 0, 524288, int, int>* pq) {
     Timer t;
     #pragma omp parallel for schedule(static, 1)
     for (int i = 0; i < randNums.size(); i++) {
@@ -78,7 +78,7 @@ void insertDeleteCoarse(vector<int>& randNums, GlobalLockPQ* pq) {
 int main(int argc, char *argv[]) {
     vector<int> randNums = generateRandNum(1000000);
     // MicroTestOptions options = parseTestOptions(argc, argv);
-    auto pq = new PriorityQueue<8, 1000001, 100, 0, int, int>();
+    auto pq = new PriorityQueue<8, 1000001, 100, 0, 524288, int, int>();
     priority_queue<int, vector<int>, greater<int>> seqPQ;
     GlobalLockPQ* glPQ = new GlobalLockPQ();
     Timer t;

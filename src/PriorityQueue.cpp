@@ -11,7 +11,6 @@
 #include <tuple>
 #include <omp.h>
 #include "PriorityQueue.h"
-#include "Allocator.h"
 
 using namespace std;
 
@@ -34,8 +33,8 @@ static int Fdel = 0x1, Fadp = 0x1, Fprg = 0x2;
 #define ClearDel(val) ({val &= ~1; val.load();})
 #define IsDel(val) (val & 1)
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-PriorityQueue<D, N, R, IDBits, TKey, TVal>::PriorityQueue():
+template <int D, long N, int R, int IDBits, int CAP, typename TKey, typename TVal>
+PriorityQueue<D, N, R, IDBits, CAP, TKey, TVal>::PriorityQueue():
     Basis(ceil(pow(N, 1.0/D))),
     IDLimit((1 << IDBits) - 1),
     PriorityLimit((1L << (32-IDBits)) - 1),
@@ -50,14 +49,15 @@ PriorityQueue<D, N, R, IDBits, TKey, TVal>::PriorityQueue():
         sNew->node[i].store(head);
     }
     stack.store(sNew);
+    allocator = new Allocator(CAP, sizeof(Node), sizeof(AdoptDesc), sizeof(Stack));
 }
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-PriorityQueue<D, N, R, IDBits, TKey, TVal>::~PriorityQueue() { }
+template <int D, long N, int R, int IDBits, int CAP, typename TKey, typename TVal>
+PriorityQueue<D, N, R, IDBits, CAP, TKey, TVal>::~PriorityQueue() { }
 
 // Helper function to map priority to key vector
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, IDBits, TKey, TVal>::keyToCoord(int key, int* k) {
+template <int D, long N, int R, int IDBits, int CAP, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, CAP, TKey, TVal>::keyToCoord(int key, int* k) {
     int quotient = key;
     for (int i = D-1; quotient && i >= 0 ; i--) {
         k[i] = quotient % Basis;
@@ -65,8 +65,8 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::keyToCoord(int key, int* k) {
     }
 }
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, IDBits, TKey, TVal>::finishInserting(Node* n, int dp, int dc) {
+template <int D, long N, int R, int IDBits, int CAP, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, CAP, TKey, TVal>::finishInserting(Node* n, int dp, int dc) {
     if (!n) {
         return;
     }
@@ -88,11 +88,10 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::finishInserting(Node* n, int dp
     n->adesc = nullptr;
 }
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
+template <int D, long N, int R, int IDBits, int CAP, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, CAP, TKey, TVal>::insert(TKey key, TVal val) {
     // stringstream buffer;
     // buffer << "Worker " << omp_get_thread_num() << " Inserting " << key << ": " << val << endl;
-    cout << sizeof(Node) << " " << sizeof(AdoptDesc) << " " << sizeof(Stack) << endl;
     auto id = ids[key].fetch_add(1);
     auto newKey = (key << IDBits) | id;
 
@@ -105,13 +104,16 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
         cout << "Warning: ID limit exceeded: " << id << " > " << IDLimit << endl;
     }
 
-    Node* newNode = new Node(newKey, val);
+    Node* newNode = allocator->newNode();
+    newNode->initNode(newKey, val);
     keyToCoord(newKey, newNode->k);
 
-    Stack* nodeStack = new Stack();
+    // TODO: Change to local Stack
+    // Stack* nodeStack = new Stack();
+    Stack nodeStack;
     Node* predNode = nullptr;
     Node* currNode = head;
-    nodeStack->head = currNode;
+    nodeStack.head = currNode;
     int currDim = 0;
     int predDim = 0;
 
@@ -128,7 +130,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
             if (currNode == nullptr || newNode->k[currDim] < currNode->k[currDim]) {
                 break;
             } else {
-                nodeStack->node[currDim].store(currNode);
+                nodeStack.node[currDim].store(currNode);
                 currDim++;
             }
         }
@@ -164,7 +166,8 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
             AdoptDesc* newAdesc = nullptr;
 
             if (predDim != currDim) {
-                newAdesc = new AdoptDesc();
+                // newAdesc = new AdoptDesc();
+                newAdesc = allocator->newDesc();
                 newAdesc->curr = currNode;
                 newAdesc->dp = predDim;
                 newAdesc->dc = currDim;
@@ -194,7 +197,9 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
 
                     Stack* prevStack = nullptr;
                     Stack* currStack = stack.load();
-                    Stack* newStack = new Stack();
+                    // Stack* newStack = new Stack();
+                    // TODO: need initilization???
+                    Stack* newStack = allocator->newStack();
 
                     do {
                         // buffer << "PredNode: " << predNode->toString() << endl;
@@ -205,12 +210,12 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
                         // buffer << "Current stack: " << formatStack(currStack) << endl;
                         // buffer << "Node stack: " << formatStack(nodeStack) << endl;
 
-                        if (currStack->head->ver == nodeStack->head->ver) {
+                        if (currStack->head->ver == nodeStack.head->ver) {
                             if (newNode->key <= currStack->node[D-1].load()->key) {
-                                newStack->head = nodeStack->head;
+                                newStack->head = nodeStack.head;
                                 for (int i = 0; i < predDim; i++)
                                 {
-                                    newStack->node[i].store(nodeStack->node[i].load());
+                                    newStack->node[i].store(nodeStack.node[i].load());
                                 }
                                 for (int i = predDim; i < D; i++)
                                 {
@@ -247,7 +252,7 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
             predNode = nullptr;
             currDim = 0;
             predDim = 0;
-            nodeStack->head = currNode;
+            nodeStack.head = currNode;
         }
         else {
             // buffer << "Warning: there should never be duplicate keys|id" << endl;
@@ -260,15 +265,14 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
     // cout << buffer.str();
 }
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() {
+template <int D, long N, int R, int IDBits, int CAP, typename TKey, typename TVal>
+tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, CAP, TKey, TVal>::deleteMin() {
     // stringstream buffer;
     // buffer << "Worker " << omp_get_thread_num() << " deleteMin" << endl;
-
     Node* min = nullptr;
-    Stack* prevStack = stack.load(), *newStack = new Stack();
+    // Stack* prevStack = stack.load(), *newStack = new Stack();
+    Stack* prevStack = stack.load(), *newStack = allocator->newStack();
     newStack->copyFrom(prevStack);
-
     // buffer << "Previous stack: " << formatStack(prevStack) << endl;
 
     int d = D - 1;
@@ -318,8 +322,8 @@ tuple<TKey, TVal, bool> PriorityQueue<D, N, R, IDBits, TKey, TVal>::deleteMin() 
     return min == nullptr? make_tuple<TKey, TVal, bool>(0, 0, false): make_tuple((min->key >> IDBits), GetVal(min->val), true);
 }
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printPQ(Node* node, int dim, string prefix) {
+template <int D, long N, int R, int IDBits, int CAP, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, CAP, TKey, TVal>::printPQ(Node* node, int dim, string prefix) {
     if (node == nullptr) {
         return;
     }
@@ -359,13 +363,13 @@ void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printPQ(Node* node, int dim, st
     }
 }
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printPQ() {
+template <int D, long N, int R, int IDBits, int CAP, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, CAP, TKey, TVal>::printPQ() {
     printPQ(this->head, 0, "│");
 }
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-string PriorityQueue<D, N, R, IDBits, TKey, TVal>::formatStack(Stack *s) {
+template <int D, long N, int R, int IDBits, int CAP, typename TKey, typename TVal>
+string PriorityQueue<D, N, R, IDBits, CAP, TKey, TVal>::formatStack(Stack *s) {
     stringstream buffer;
     buffer << "Head: " << (s->head->key >> IDBits) << "-" << (s->head->key & ((1<<IDBits)-1));
     buffer << " Nodes: ";
@@ -391,8 +395,8 @@ string PriorityQueue<D, N, R, IDBits, TKey, TVal>::formatStack(Stack *s) {
     return buffer.str();
 }
 
-template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
-void PriorityQueue<D, N, R, IDBits, TKey, TVal>::printStack() {
+template <int D, long N, int R, int IDBits, int CAP, typename TKey, typename TVal>
+void PriorityQueue<D, N, R, IDBits, CAP, TKey, TVal>::printStack() {
     cout << formatStack(stack.load()) << endl;
 }
 
