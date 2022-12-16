@@ -11,6 +11,7 @@
 #include <tuple>
 #include <omp.h>
 #include "PriorityQueue.h"
+#include "Allocator.h"
 
 using namespace std;
 
@@ -91,11 +92,9 @@ template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
 void PriorityQueue<D, N, R, IDBits, TKey, TVal>::insert(TKey key, TVal val) {
     // stringstream buffer;
     // buffer << "Worker " << omp_get_thread_num() << " Inserting " << key << ": " << val << endl;
-
+    cout << sizeof(Node) << " " << sizeof(AdoptDesc) << " " << sizeof(Stack) << endl;
     auto id = ids[key].fetch_add(1);
     auto newKey = (key << IDBits) | id;
-    // auto newKey = key;
-    // cout << "the new key is: " << (newKey == key) << endl;
 
     if (IDBits > 0 && key > PriorityLimit) {
         // buffer << "Warning: Priority limit exceeded: " << key << " > " << PriorityLimit << endl;
