@@ -11,7 +11,6 @@ using namespace std;
 int main() {
 
     auto pq = new PriorityQueue<8, 4294967295, 100, 13, long, long>();
-    // auto pq = new PriorityQueue<3, 64, 100, 0, long, long>();
 
     // DeleteMin on empty queue
     auto minVal = pq->deleteMin();
@@ -65,7 +64,6 @@ int main() {
     pq->printPQ();
     pq->printStack();
     cout << "After the deletion2 -----------------------------" << endl;
-    // pq->printHelper();
     minVal = pq->deleteMin();
     cout << get<0>(minVal) << ": " << get<1>(minVal) << "(" << get<2>(minVal) << ")" << endl;
     pq->printStack();
@@ -73,8 +71,6 @@ int main() {
     pq->insert(1, 1);
     pq->insert(2, 2);
     pq->insert(3, 3);
-    // pq->insert(4, nullptr);
-    // pq->insert(32, nullptr);
     cout << "After the insertion ------------------------------" << endl;
     pq->printPQ();
     pq->printStack();

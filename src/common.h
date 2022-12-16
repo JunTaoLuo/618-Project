@@ -29,6 +29,30 @@ inline StartupOptions parseOptions(int argc, char *argv[]) {
   return rs;
 }
 
+struct MicroTestOptions {
+  int D;
+  long N;
+  int R;
+  int IDBits;
+};
+
+inline MicroTestOptions parseTestOptions(int argc, char *argv[]) {
+  MicroTestOptions rs;
+  for (int i = 1; i < argc; i++) {
+    if (i < argc - 1) {
+      if (strcmp(argv[i], "-D") == 0)
+        rs.D = atoi(argv[i + 1]);
+      else if (strcmp(argv[i], "-N") == 0)
+        rs.N = atoi(argv[i + 1]);
+      else if (strcmp(argv[i], "-R") == 0)
+        rs.R = atoi(argv[i + 1]);
+      else if (strcmp(argv[i], "-IDBits") == 0)
+        rs.IDBits = atoi(argv[i + 1]);
+    }
+  }
+  return rs;
+}
+
 // These functions are marked inline only because we want to define them in the
 // header file.
 inline bool loadGraphFromFile(std::string fileName,
