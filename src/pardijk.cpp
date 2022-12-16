@@ -3,6 +3,11 @@
 #include <climits>
 #include <queue>
 #include <omp.h>
+#include <string>
+#include <iostream>
+#include <sstream>
+
+using namespace std;
 
 struct Offer {
   int vertex, distance;
@@ -138,8 +143,13 @@ void sssp_worker(Graph &graph) {
       graph.done[threadIndex] = true;
       while (graph.done[threadIndex]) {
         int i;
-        for (i = 0; i < numThreads && graph.done[i]; i++) { }
+        stringstream buf;
+        buf << "Worker " << threadIndex << " checking done ";
+        for (i = 0; i < numThreads && graph.done[i]; i++) { buf << graph.done[i]; }
+        buf << endl;
+        cout << buf.str();
         if (i == numThreads) {
+          printf("Worker %d done\n", threadIndex);
           return;
         }
       }
@@ -163,22 +173,4 @@ void sssp(const std::vector<std::vector<uint>> &edges,
   }
 
   distances.swap(graph.distances);
-}
-
-int main(int argc, char *argv[]) {
-  StartupOptions options = parseOptions(argc, argv);
-
-  std::vector<std::vector<uint>> edges;
-  loadGraphFromFile(options.inputFile, edges);
-  std::vector<uint> distances(edges.size(), UINT_MAX);
-
-  Timer totalTimer;
-
-  sssp(edges, distances);
-
-  double totalTime = totalTimer.elapsed();
-
-  // Profiling results ==================
-  printf("total time: %.6fs\n", totalTime);
-  saveDistancesToFile(options.outputFile, distances);
 }

@@ -1,0 +1,3 @@
+Seq Insert: 0.0148578
+Seq DeleteMin: 0.0913037
+Seq Mixed: 0.0250485

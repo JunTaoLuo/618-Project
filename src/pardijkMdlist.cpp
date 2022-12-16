@@ -2,6 +2,9 @@
 #include "timing.h"
 #include <climits>
 #include <omp.h>
+#include <string>
+#include <iostream>
+#include <sstream>
 #include "PriorityQueue.cpp"
 
 template <int D, long N, int R, int IDBits, typename TKey, typename TVal>
@@ -48,9 +51,9 @@ struct Graph {
       uint offerDistance = offers[vertex];
       if (offerDistance == 0 || distance < offerDistance) {
         offers[vertex] = distance;
-        printf("Worker %d inserting new order (%u -> %u)\n", omp_get_thread_num(), vertex, distance);
+        // printf("Worker %d inserting new order (%u -> %u)\n", omp_get_thread_num(), vertex, distance);
         pq->insert(distance, vertex);
-        printf("Worker %d inserted new order (%u -> %u)\n", omp_get_thread_num(), vertex, distance);
+        // printf("Worker %d inserted new order (%u -> %u)\n", omp_get_thread_num(), vertex, distance);
       }
     }
     omp_unset_lock(&(offerLocks[vertex]));
@@ -78,10 +81,10 @@ void sssp_worker(Graph<D, N, R, IDBits, TKey, TVal> &graph) {
     TVal vertex;
     bool valid;
 
-    printf("Worker %d retrieving offer\n", threadIndex);
+    // printf("Worker %d retrieving offer\n", threadIndex);
     tie(distance, vertex, valid) = graph.pq->deleteMin();
     if (valid) {
-      printf("Worker %d retrieved offer (%u -> %u)\n", threadIndex, (uint)vertex, (uint)distance);
+      // printf("Worker %d retrieved offer (%u -> %u)\n", threadIndex, (uint)vertex, (uint)distance);
       if (graph.processOffer((uint)distance, (uint)vertex)) {
         uint currentVertex = (uint)vertex;
         auto neighbors = graph.edges[currentVertex];
@@ -101,9 +104,13 @@ void sssp_worker(Graph<D, N, R, IDBits, TKey, TVal> &graph) {
       graph.done[threadIndex] = true;
       while (graph.done[threadIndex]) {
         int i;
-        for (i = 0; i < numThreads && graph.done[i]; i++) { }
+        stringstream buf;
+        buf << "Worker " << threadIndex << " checking done ";
+        for (i = 0; i < numThreads && graph.done[i]; i++) { buf << graph.done[i]; }
+        buf << endl;
+        cout << buf.str();
         if (i == numThreads) {
-          // printf("Worker %d received concensus\n", threadIndex);
+          printf("Worker %d done\n", threadIndex);
           return;
         }
         // printf("Worker %d noticed worker %d is not done\n", threadIndex, i);
@@ -129,8 +136,8 @@ void sssp(const std::vector<std::vector<uint>> &edges,
     sssp_worker(graph);
   }
 
-  graph.pq->printPQ();
-  graph.pq->printStack();
+  // graph.pq->printPQ();
+  // graph.pq->printStack();
 
   distances.swap(graph.distances);
 }
