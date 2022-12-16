@@ -45,15 +45,16 @@ void insertDelete(vector<int>& randNums, PriorityQueue<8, 1000001, 100, 0, int, 
     return;
 }
 
-void insertDeleteSeq(vector<int>& randNums, priority_queue<int, vector<int>, greater<int>>& pq) {
+void insertDeleteSeq(vector<int>& randNums, priority_queue<Offer>& pq) {
     Timer t;
     for (int i = 0; i < randNums.size(); i++) {
-        pq.push(randNums[i]);
+
+        pq.push(Offer(randNums[i], randNums[i]));
     }
     cout << "sequential insert time is: " << t.elapsed() << endl;
     t.reset();
     for (int i = 0; i < randNums.size(); i++) {
-        // int currMin = pq.top();
+        auto currMin = pq.top();
         pq.pop();
         // cout << currMin << endl;
     }
@@ -79,7 +80,7 @@ int main(int argc, char *argv[]) {
     vector<int> randNums = generateRandNum(1000000);
     // MicroTestOptions options = parseTestOptions(argc, argv);
     auto pq = new PriorityQueue<8, 1000001, 100, 0, int, int>();
-    priority_queue<int, vector<int>, greater<int>> seqPQ;
+    priority_queue<Offer> seqPQ;
     GlobalLockPQ* glPQ = new GlobalLockPQ();
     Timer t;
     t.reset();
@@ -90,6 +91,6 @@ int main(int argc, char *argv[]) {
     cout << "Sequential Insert and Delele time: " << t.elapsed() << "---------------------------" << endl;
     t.reset();
     insertDeleteCoarse(randNums, glPQ);
-    cout << "GlobalLock Insert and Delele time: " << t.elapsed() << "---------------------------" << endl;   
+    cout << "GlobalLock Insert and Delele time: " << t.elapsed() << "---------------------------" << endl;
     return 0;
 }
