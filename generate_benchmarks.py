@@ -24,14 +24,14 @@ for graph_size in graph_sizes:
     edge_index = 0
 
     graph_path = os.path.join(graph_dir, f"bench-{graph_size}-init.txt")
-    print(f"Generating graph of size {graph_size} at {graph_path}")
-    with open(graph_path, "w") as f:
-        f.write(f"{graph_size}\n")
-        for i in range(graph_size-1):
-            for j in range(i+1, graph_size):
-                if (edges[edge_index] == 1):
-                    f.write(f"{i} {j} {random.randint(1, 64)}\n")
-                edge_index += 1
+    # print(f"Generating graph of size {graph_size} at {graph_path}")
+    # with open(graph_path, "w") as f:
+    #     f.write(f"{graph_size}\n")
+    #     for i in range(graph_size-1):
+    #         for j in range(i+1, graph_size):
+    #             if (edges[edge_index] == 1):
+    #                 f.write(f"{i} {j} {random.randint(1, 64)}\n")
+    #             edge_index += 1
 
     ref_path = os.path.join(graph_dir, f"bench-{graph_size}-ref.txt")
     log_path = f'logs/bench-{graph_size}.log'

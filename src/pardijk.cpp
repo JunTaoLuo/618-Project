@@ -3,6 +3,11 @@
 #include <climits>
 #include <queue>
 #include <omp.h>
+#include <string>
+#include <iostream>
+#include <sstream>
+
+using namespace std;
 
 struct Offer {
   int vertex, distance;
@@ -138,8 +143,13 @@ void sssp_worker(Graph &graph) {
       graph.done[threadIndex] = true;
       while (graph.done[threadIndex]) {
         int i;
-        for (i = 0; i < numThreads && graph.done[i]; i++) { }
+        stringstream buf;
+        buf << "Worker " << threadIndex << " checking done ";
+        for (i = 0; i < numThreads && graph.done[i]; i++) { buf << graph.done[i]; }
+        buf << endl;
+        cout << buf.str();
         if (i == numThreads) {
+          printf("Worker %d done\n", threadIndex);
           return;
         }
       }
@@ -149,12 +159,14 @@ void sssp_worker(Graph &graph) {
 
 // Single Source Shortest Path: Dijkstra's Algorithm
 // Assume we want distance from node 0
-void sssp(const std::vector<std::vector<uint>> &edges,
+double sssp(const std::vector<std::vector<uint>> &edges,
           std::vector<uint> &distances) {
   uint numVertices = distances.size();
   GlobalLockPQ pq = GlobalLockPQ();
   pq.insert(Offer(0, 0));
   Graph graph = Graph(numVertices, edges, distances, pq);
+
+  Timer totalTimer;
 
   #pragma omp parallel shared(graph)
   {
@@ -162,5 +174,9 @@ void sssp(const std::vector<std::vector<uint>> &edges,
     sssp_worker(graph);
   }
 
+  double totalTime = totalTimer.elapsed();
+
   distances.swap(graph.distances);
+
+  return totalTime;
 }
