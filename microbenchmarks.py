@@ -11,7 +11,7 @@ script_dir = os.path.dirname(__file__)
 if os.environ["HOME"].startswith("/afs/andrew.cmu.edu"):
     workers = [1, 2, 4, 8]
 else:
-    workers = [1, 2, 4, 8, 16, 32, 64, 128]
+    workers = [1, 2, 4, 8, 16, 32, 64]
 scenarios = ["PQGLock Insert", "PQGLock Delete", "PQGLock Mixed", "PQMDList Insert", "PQMDList Delete", "PQMDList Mixed"]
 
 perfs = [[None] * len(workers) for _ in range(len(scenarios))]
