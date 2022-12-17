@@ -9,7 +9,7 @@ endif
 ifeq (debug,$(CONFIGURATION))
 CFLAGS += -g
 else
-CFLAGS += -O3 -fopenmp
+CFLAGS += -O3 -fopenmp -pg
 endif
 
 SOURCES := src/*.cpp
