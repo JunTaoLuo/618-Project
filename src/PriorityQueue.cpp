@@ -108,8 +108,6 @@ void PriorityQueue<D, N, R, IDBits, CAP, TKey, TVal>::insert(TKey key, TVal val)
     newNode->initNode(newKey, val);
     keyToCoord(newKey, newNode->k);
 
-    // TODO: Change to local Stack
-    // Stack* nodeStack = new Stack();
     Stack nodeStack;
     Node* predNode = nullptr;
     Node* currNode = head;

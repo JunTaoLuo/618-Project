@@ -105,12 +105,14 @@ void sssp_worker(Graph<D, N, R, IDBits, CAP, TKey, TVal> &graph) {
       while (graph.done[threadIndex]) {
         int i;
         stringstream buf;
-        buf << "Worker " << threadIndex << " checking done ";
-        for (i = 0; i < numThreads && graph.done[i]; i++) { buf << graph.done[i]; }
-        buf << endl;
-        cout << buf.str();
+        // buf << "Worker " << threadIndex << " checking done ";
+        for (i = 0; i < numThreads && graph.done[i]; i++) { 
+          // buf << graph.done[i]; 
+        }
+        // buf << endl;
+        // cout << buf.str();
         if (i == numThreads) {
-          printf("Worker %d done\n", threadIndex);
+          // printf("Worker %d done\n", threadIndex);
           return;
         }
         // printf("Worker %d noticed worker %d is not done\n", threadIndex, i);

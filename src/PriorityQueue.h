@@ -22,7 +22,7 @@ private:
         atomic<Node*>* child;
         AdoptDesc* adesc;
         int k[D] = {0};
-        Node(): Node(0, 0) {}
+        Node() {}
         Node(TKey _key): Node(_key, 0) {}
         Node(TKey _key, TVal _val): key(_key), val(_val << 1), ver(0), adesc(nullptr) {
             child = new atomic<Node*>[D];
