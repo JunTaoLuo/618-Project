@@ -5,6 +5,7 @@ Authors: [Yumin Chen](https://github.com/yuminc1234) and [Jun Tao Luo](https://g
 Links:
 - [Project Proposal](docs/Project%20Proposal.pdf)
 - [Milestone Report](docs/Milestone%20Report.pdf)
+- [Final Report](docs/618_Final.pdf)
 
 ## Summary
 
@@ -68,16 +69,16 @@ We will implement the priority_queue in C++ and develop the benchmark scripts in
 | Nov. 21 - Nov. 27   | Implement benchmark scripts and reference algorithm (parallel Dijkstra’s) using concurrent priority queues. | Completed, Jun Tao Luo |
 | Nov. 21 - Nov. 27   | Start to work on project milestone report | Completed, Jun Tao Luo and Yumin Chen |
 | Nov. 30   | Finish the project milestone report | Completed, Jun Tao Luo and Yumin Chen |
-| Dec. 2   | Implement concurrent INSERT | In Progress, Jun Tao Luo |
-| Dec. 2   | Test and debug correctness of the MDList priority queue | In Progress, Yumin Chen |
-| Dec. 6   | Profile the MDList priority queue, and analyze performance | Pending, Yumin Chen |
-| Dec. 6   | Create graphs showing performance statistics and make comparisons with other mature lock-free concurrent priority-queue if applicable | Pending, Jun Tao Luo |
-| Dec. 9   | Final project report draft | Pending, Jun Tao Luo |
-| Dec. 9   | Final project poster draft | Pending, Yumin Chen |
-| Dec. 9   | Evaluate feasibility of HOPE TO ACHIEVE tasks | Pending, Jun Tao Luo and Yumin Chen |
-| Dec. 13   | Complete final project report | Pending, Jun Tao Luo |
-| Dec. 13   | Complete HOPE TO ACHIEVE tasks | Pending, Jun Tao Luo and Yumin Chen |
-| Dec. 17   | Complete final project poster | Pending, Yumin Chen |
+| Dec. 2   | Implement concurrent INSERT | Completed, Jun Tao Luo |
+| Dec. 2   | Test and debug correctness of the MDList priority queue | Completed, Yumin Chen |
+| Dec. 6   | Profile the MDList priority queue, and analyze performance | Completed, Yumin Chen |
+| Dec. 6   | Create graphs showing performance statistics and make comparisons with other mature lock-free concurrent priority-queue if applicable | Completed, Jun Tao Luo |
+| Dec. 9   | Final project report draft | Completed, Jun Tao Luo |
+| Dec. 9   | Final project poster draft | Completed, Yumin Chen |
+| Dec. 9   | Evaluate feasibility of HOPE TO ACHIEVE tasks | Completed, Jun Tao Luo and Yumin Chen |
+| Dec. 13   | Complete final project report | Completed, Jun Tao Luo and Yumin Chen |
+| Dec. 13   | Complete HOPE TO ACHIEVE tasks | Completed, Jun Tao Luo and Yumin Chen |
+| Dec. 17   | Complete final project poster | Completed, Jun Tao Luo and Yumin Chen |
 
 ## Current Progress
 
